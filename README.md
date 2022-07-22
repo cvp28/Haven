@@ -15,11 +15,11 @@ The two stock renderers are as follows:
   
 ### The Pure-C# Cross-Platform Renderer  
 Implemented using the System.Console API and relies on ANSI escape sequences to produce color.  
-How to use: Engine.Initialize<Screen>();  
+How to use: Engine.Initialize&lt;Screen&gt;();  
   
 ### The Kernel32-Based Renderer  
 Implemented using P/Invoke calls to GetStdHandle() and WriteConsoleOutputW() in Kernel32.dll on Windows systems.  
-How to use: Engine.Initialize<NativeScreen>();  
+How to use: Engine.Initialize&lt;NativeScreen&gt;();  
   
 On a Windows system, Kernel32 should be used as it provides superior performance to the .NET API.  
 On a Unix system, with their more performance-oriented console, the Pure-C# renderer should yield FPS values well beyond 1,000 for moderately complex apps.  
