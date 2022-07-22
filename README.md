@@ -6,7 +6,7 @@ Everything in Haven is built around widgets. Widgets interact with the Haven Eng
 Each widget can subscribe to the OnConsoleKey() callback that the engine will call if the widget is focused and the user has provided keyboard input.  
 Additionally, each widget must implement a Draw() routine that the renderer will call each iteration of the render loop to draw the widget to the screen.  
   
-The engine is built such that custom widgets can be constructed from these guidelines by extending the Widget base class.  
+The engine is built in a way such that custom widgets can be constructed from these guidelines by extending the Widget base class.  
 Widgets can be focused by modifying the Engine.FocusedWidget field.  
   
 ## Renderers 
