@@ -1,4 +1,4 @@
-# Quantum  
+# Haven  
 Haven is a C# .NET 6 library made for console apps that require a simple, customizable, and performant user interface.  
   
 Everything in Haven is built around widgets. Widgets interact with the Haven Engine in multiple ways.  
