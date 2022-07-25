@@ -3,7 +3,9 @@ namespace Haven;
 
 public class WidgetGroup
 {
-	private List<Widget> Widgets;
+	public List<Widget> Widgets;
+	public Action<WidgetGroup> OnShow;
+	public Action<WidgetGroup> OnHide;
 
 	public WidgetGroup(params Widget[] Widgets)
 	{
@@ -22,12 +24,18 @@ public class WidgetGroup
 	{
 		foreach (Widget w in Widgets)
 			w.Visible = true;
+
+		if(OnShow is not null)
+			OnShow(this);
 	}
 
 	public void Hide()
 	{
 		foreach (Widget w in Widgets)
 			w.Visible = false;
+
+		if (OnHide is not null)
+			OnHide(this);
 	}
 
 	public void ToggleVisibility()

@@ -162,6 +162,12 @@ public static class Engine
 			AddWidget(Widget);
 	}
 
+	public static void AddWidgets(WidgetGroup Group)
+	{
+		foreach (Widget Widget in Group.Widgets)
+			AddWidget(Widget);
+	}
+
 	public static bool RemoveWidget(Widget Widget)
 	{
 		return Widgets.Remove(Widget);
