@@ -25,7 +25,7 @@ public class WidgetGroup
 		foreach (Widget w in Widgets)
 			w.Visible = true;
 
-		if(OnShow is not null)
+		if (OnShow is not null)
 			OnShow(this);
 	}
 
