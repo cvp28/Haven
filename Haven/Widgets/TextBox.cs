@@ -12,14 +12,55 @@ public class TextBox : Widget
 	public bool CursorVisible { get; set; }
 	public int CursorBlinkIntervalMs { get; set; }
 
-	public int Width { get; set; }
-	public int Height { get; set; }
+	public int Width { get; private set; }
+	public int Height { get; private set; }
 
-	private CharacterInfo[] Buffer;
+	private CharacterInfo[] ScreenBuffer;
 	private CharacterInfo[] ClearBuffer;
 	private int TotalCells;
 
 	private bool DoCursorRender;
+
+	public TextBox()
+	{
+		X = 0;
+		Y = 0;
+
+		DoCursorRender = true;
+		Task.Run(() =>
+		{
+			// gotta love english inside of if statements
+			while (this is not null)
+			{
+				Thread.Sleep(CursorBlinkIntervalMs);
+				DoCursorRender = !DoCursorRender;
+
+			}
+		});
+
+		CursorX = 0;
+		CursorY = 0;
+		CursorVisible = true;
+		CursorBlinkIntervalMs = 250;
+
+		Width = Console.WindowWidth - 2;
+		Height = Console.WindowHeight - 2;
+
+		TotalCells = Width * Height;
+
+		ScreenBuffer = new CharacterInfo[TotalCells];
+		ClearBuffer = new CharacterInfo[TotalCells];
+
+		for (int i = 0; i < TotalCells; i++)
+		{
+			ClearBuffer[i].Character = ' ';
+			ClearBuffer[i].Foreground = ConsoleColor.White;
+			ClearBuffer[i].Background = ConsoleColor.Black;
+			ClearBuffer[i].DoColors = false;
+		}
+
+		Clear();
+	}
 
 	public TextBox(int X, int Y, int Width, int Height) : base()
 	{
@@ -34,6 +75,7 @@ public class TextBox : Widget
 			{
 				Thread.Sleep(CursorBlinkIntervalMs);
 				DoCursorRender = !DoCursorRender;
+				
 			}
 		});
 
@@ -47,7 +89,7 @@ public class TextBox : Widget
 
 		TotalCells = Width * Height;
 
-		Buffer = new CharacterInfo[TotalCells];
+		ScreenBuffer = new CharacterInfo[TotalCells];
 		ClearBuffer = new CharacterInfo[TotalCells];
 
 		for (int i = 0; i < TotalCells; i++)
@@ -136,7 +178,7 @@ public class TextBox : Widget
 
 		TotalCells = Width * Height;
 
-		Buffer = new CharacterInfo[TotalCells];
+		ScreenBuffer = new CharacterInfo[TotalCells];
 		ClearBuffer = new CharacterInfo[TotalCells];
 
 		for (int i = 0; i < TotalCells; i++)
@@ -178,16 +220,16 @@ public class TextBox : Widget
 
 	public void Clear()
 	{
-		Array.Copy(ClearBuffer, Buffer, TotalCells);
+		Array.Copy(ClearBuffer, ScreenBuffer, TotalCells);
 		CursorX = 0;
 		CursorY = 0;
 	}
 
 	public override void Draw(IRenderer s)
 	{
-		s.WriteBox(X, Y, Width + 2, Height + 2);
+		s.DrawBox(X, Y, Width + 2, Height + 2);
 
-		s.CopyToBuffer2D(X + 1, Y + 1, Width, Buffer);
+		s.CopyToBuffer2D(X + 1, Y + 1, Width, ScreenBuffer);
 
 		if (DoCursorRender && CursorVisible)
 			s.AddColorsAt(X + CursorX + 1, Y + CursorY + 1, ConsoleColor.Black, ConsoleColor.White);
@@ -205,11 +247,11 @@ public class TextBox : Widget
 	public void ScrollDown()
 	{
 		// Shift entire buffer up by one line
-		Array.Copy(Buffer, Width, Buffer, 0, Buffer.Length - Width);
+		Array.Copy(ScreenBuffer, Width, ScreenBuffer, 0, ScreenBuffer.Length - Width);
 
 		// Clear last line
 		for (int i = Width * (Height - 1); i < TotalCells; i++)
-			Buffer[i] = ClearBuffer[i];
+			ScreenBuffer[i] = ClearBuffer[i];
 	}
 
 	private void AdvanceCursor()
@@ -233,23 +275,23 @@ public class TextBox : Widget
 	private void ModifyChar(char Character)
 	{
 		int CellIndex = IX(CursorX, CursorY);
-		Buffer[CellIndex].Character = Character;
+		ScreenBuffer[CellIndex].Character = Character;
 	}
 
 	private void ModifyChar(char Character, ConsoleColor Foreground, ConsoleColor Background)
 	{
 		int CellIndex = IX(CursorX, CursorY);
 
-		Buffer[CellIndex].Character = Character;
-		Buffer[CellIndex].Foreground = Foreground;
-		Buffer[CellIndex].Background = Background;
-		Buffer[CellIndex].DoColors = true;
+		ScreenBuffer[CellIndex].Character = Character;
+		ScreenBuffer[CellIndex].Foreground = Foreground;
+		ScreenBuffer[CellIndex].Background = Background;
+		ScreenBuffer[CellIndex].DoColors = true;
 	}
 
 	private void AddClear()
 	{
 		int CellIndex = IX(CursorX, CursorY);
-		Buffer[CellIndex].SignalAnsiClear = true;
+		ScreenBuffer[CellIndex].SignalAnsiClear = true;
 	}
 
 	public void NextLine()
@@ -305,12 +347,36 @@ public class TextBox : Widget
 
 	public void Write(char Character)
 	{
+		if (Character == '\r')
+		{
+			CursorX = 0;
+			return;
+		}
+
+		if (Character == '\n')
+		{
+			NextLine();
+			return;
+		}
+
 		ModifyChar(Character);
 		AdvanceCursor();
 	}
 
 	public void Write(char Character, ConsoleColor Foreground, ConsoleColor Background)
 	{
+		if (Character == '\r')
+		{
+			CursorX = 0;
+			return;
+		}
+
+		if (Character == '\n')
+		{
+			NextLine();
+			return;
+		}
+
 		ModifyChar(Character, Foreground, Background);
 		AdvanceCursor();
 	}
@@ -318,6 +384,9 @@ public class TextBox : Widget
 	public void WriteCharInPlace(char Character) => ModifyChar(Character);
 
 	public void WriteCharInPlace(char Character, ConsoleColor Foreground, ConsoleColor Background) => ModifyChar(Character, Foreground, Background);
+
+	public (int X, int Y) GetCursorPosition() => (CursorX, CursorY);
+
 
 	public void CursorLeft()
 	{

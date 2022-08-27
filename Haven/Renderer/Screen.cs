@@ -110,7 +110,7 @@ public class Screen : IRenderer
 		AddClearAt(ClearIndex);
 	}
 
-	public void WriteBox(int X, int Y, int Width, int Height)
+	public void DrawBox(int X, int Y, int Width, int Height)
 	{
 		int CellIndex = IX(X, Y);
 

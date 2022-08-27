@@ -12,13 +12,19 @@ public class Menu : Widget
 
 	public MenuStyle SelectedOptionStyle { get; set; }
 
-	private int SelectedOption;
+	/// <summary>
+	/// Determines if the options will always be drawn styled regardless of if the menu is focused
+	/// </summary>
+	public bool AlwaysStyle;
+
+	public int SelectedOption { get; private set; }
 
 	public Menu(int X, int Y)
 	{
 		this.X = X;
 		this.Y = Y;
 		SelectedOption = 0;
+		AlwaysStyle = false;
 
 		Options = new();
 		Actions = new();
@@ -26,11 +32,17 @@ public class Menu : Widget
 
 	public void AddOption(string Option, Action Action)
 	{
-		if (Options.Contains(Option) || Actions.Contains(Action))
+		if (Option is null || Action is null)
 			return;
 
 		Options.Add(Option);
 		Actions.Add(Action);
+	}
+
+	public void RemoveAllOptions()
+	{
+		Options.Clear();
+		Actions.Clear();
 	}
 
 	public override void Draw(IRenderer s)
@@ -49,7 +61,7 @@ public class Menu : Widget
 
 	private void DrawSelectedOption(IRenderer s, int OptionNum)
 	{
-		if (!Focused)
+		if (!Focused && !AlwaysStyle)
 		{
 			s.WriteStringAt(X, Y + OptionNum, $"{Options[OptionNum]}");
 			return;

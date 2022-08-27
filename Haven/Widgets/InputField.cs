@@ -19,7 +19,7 @@ public class InputField : Widget
 
 	private int CurrentBufferIndex = 0;
 
-	public event Action<string> OnInput;
+	public Action<string> OnInput { get; set; }
 
 	public InputField(int X, int Y, string Prompt)
 	{
@@ -32,6 +32,7 @@ public class InputField : Widget
 		Buffer = new();
 		History = new();
 		BufferLock = new();
+		OnInput = null;
 	}
 
 	public InputField(int X, int Y, string Prompt, ConsoleColor CursorForeground, ConsoleColor CursorBackground)
@@ -45,6 +46,7 @@ public class InputField : Widget
 		Buffer = new();
 		History = new();
 		BufferLock = new();
+		OnInput = null;
 	}
 
 	public override void Draw(IRenderer s)
@@ -54,6 +56,13 @@ public class InputField : Widget
 
 		if (DrawCursor && Focused)
 			s.AddColorsAt(X + Prompt.Length + CurrentBufferIndex, Y, CursorForeground, CursorBackground);
+	}
+
+	public void Clear()
+	{
+		lock (BufferLock)
+			while (CurrentBufferIndex > 0)
+				Backspace();
 	}
 
 	private void CursorToStart()

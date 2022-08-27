@@ -74,6 +74,13 @@ public class NativeScreen : IRenderer
 		ScreenBuffer[CellIndex].Attributes = (short) CellAttribute;
 	}
 
+	private void AddColorsAt(int CellIndex, ConsoleColor Foreground, ConsoleColor Background)
+	{
+		int CellAttribute = (byte)Foreground | ((byte)Background << 4);
+
+		ScreenBuffer[CellIndex].Attributes = (short)CellAttribute;
+	}
+
 	public void CopyToBuffer2D(int X, int Y, int LineWidth, CharacterInfo[] Buffer)
 	{
 		int OffX = 0;
@@ -101,10 +108,8 @@ public class NativeScreen : IRenderer
 		}
 	}
 
-	public void WriteBox(int X, int Y, int Width, int Height)
+	public void DrawBox(int X, int Y, int Width, int Height)
 	{
-		int CellIndex = IX(X, Y);
-
 		int TopLeftIndex = IX(X, Y);
 		int TopRightIndex = IX(X + Width - 1, Y);
 		int BottomLeftIndex = IX(X, Y + Height - 1);
@@ -114,6 +119,11 @@ public class NativeScreen : IRenderer
 		ModifyCharAt(TopRightIndex, BoxChars.TopRight);
 		ModifyCharAt(BottomLeftIndex, BoxChars.BottomLeft);
 		ModifyCharAt(BottomRightIndex, BoxChars.BottomRight);
+
+		AddColorsAt(TopLeftIndex, ConsoleColor.White, ConsoleColor.Black);
+		AddColorsAt(TopRightIndex, ConsoleColor.White, ConsoleColor.Black);
+		AddColorsAt(BottomLeftIndex, ConsoleColor.White, ConsoleColor.Black);
+		AddColorsAt(BottomRightIndex, ConsoleColor.White, ConsoleColor.Black);
 
 		//	ModifyCharAt(CellIndex, BoxChars.TopLeft);
 		//	ModifyCharAt(CellIndex + Width - 1, BoxChars.TopRight);
@@ -128,6 +138,9 @@ public class NativeScreen : IRenderer
 			ModifyCharAt(WindowTopIndex, BoxChars.Horizontal);
 			ModifyCharAt(WindowBottomIndex, BoxChars.Horizontal);
 
+			AddColorsAt(WindowTopIndex, ConsoleColor.White, ConsoleColor.Black);
+			AddColorsAt(WindowBottomIndex, ConsoleColor.White, ConsoleColor.Black);
+
 			//	ModifyCharAt(CellIndex + i, BoxChars.Horizontal);
 			//	ModifyCharAt(CellIndex + (WindowWidthCells * (Height - 1) + i), BoxChars.Horizontal);
 		}
@@ -139,6 +152,9 @@ public class NativeScreen : IRenderer
 
 			ModifyCharAt(WindowLeftIndex, BoxChars.Vertical);
 			ModifyCharAt(WindowRightIndex, BoxChars.Vertical);
+
+			AddColorsAt(WindowLeftIndex, ConsoleColor.White, ConsoleColor.Black);
+			AddColorsAt(WindowRightIndex, ConsoleColor.White, ConsoleColor.Black);
 
 			//	ModifyCharAt(CellIndex + (WindowWidthCells * i), BoxChars.Vertical);
 			//	ModifyCharAt(CellIndex + (WindowWidthCells * i) + Width - 1, BoxChars.Vertical);

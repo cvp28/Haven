@@ -20,21 +20,21 @@ public class WidgetGroup
 		}
 	}
 
-	public void Show()
+	public void Show(bool DoEvent = true)
 	{
 		foreach (Widget w in Widgets)
 			w.Visible = true;
 
-		if (OnShow is not null)
+		if (OnShow is not null && DoEvent)
 			OnShow(this);
 	}
 
-	public void Hide()
+	public void Hide(bool DoEvent = true)
 	{
 		foreach (Widget w in Widgets)
 			w.Visible = false;
 
-		if (OnHide is not null)
+		if (OnHide is not null && DoEvent)
 			OnHide(this);
 	}
 

@@ -36,13 +36,14 @@ public static class Engine
 	}
 	private static List<Widget> Widgets;
 
-	public static Action<State> OnUpdate { get; set; } = null;
+	private static Dictionary<string, Action<State>> UpdateTasks;
 
 	public static void Initialize<T>() where T : IRenderer
 	{
 		RenderThread = new(RenderLoop);
 		RenderThread.IsBackground = false;
-		RenderThread.Name = "Quantum Screen Renderer Loop Thread";
+		RenderThread.Name = "Haven Render Thread";
+		RenderThread.Priority = ThreadPriority.Highest;
 
 		RenderTimer = new();
 
@@ -51,6 +52,7 @@ public static class Engine
 		Screen = Activator.CreateInstance(typeof(T)) as IRenderer;
 
 		Widgets = new();
+		UpdateTasks = new();
 
 		AppActive = false;
 		RenderActive = false;
@@ -109,8 +111,9 @@ public static class Engine
 			}
 			#endregion
 
-			if (OnUpdate is not null)
-				OnUpdate(s);
+			if (UpdateTasks.Count > 0)
+				foreach (var Task in UpdateTasks)
+					Task.Value(s);
 		}
 	}
 
@@ -125,8 +128,6 @@ public static class Engine
 			// Calculate FPS
 			FPS = Stopwatch.Frequency / RenderTimer.ElapsedTicks;
 			FrameTime = RenderTimer.ElapsedMilliseconds;
-
-			//Console.Title = $"{FPS} FPS";
 		}
 	}
 
@@ -139,7 +140,7 @@ public static class Engine
 
 		RenderThread.Start();		// Run render thread concurrently
 		ApplicationLoop();			// Run application logic in main thread and await its return first
-		RenderThread.Join();		// Then, await render thread return
+		RenderThread.Join();        // Then, await render thread return
 
 		Console.ResetColor();
 		Console.Clear();
@@ -150,6 +151,16 @@ public static class Engine
 		AppActive = false;
 		RenderActive = false;
 	}
+
+	public static bool AddUpdateTask(string TaskID, Action<State> Action)
+	{
+		if (UpdateTasks.ContainsKey(TaskID)) { return false; }
+
+		UpdateTasks.Add(TaskID, Action);
+		return true;
+	}
+
+	public static bool RemoveUpdateTask(string TaskID) => UpdateTasks.Remove(TaskID);
 
 	public static void AddWidget(Widget Widget)
 	{

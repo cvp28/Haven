@@ -13,5 +13,5 @@ public interface IRenderer
 
 	public void WriteColorStringAt(int X, int Y, string Text, ConsoleColor Foreground, ConsoleColor Background);
 
-	public void WriteBox(int X, int Y, int Width, int Height);
+	public void DrawBox(int X, int Y, int Width, int Height);
 }
