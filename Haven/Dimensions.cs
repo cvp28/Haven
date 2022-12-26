@@ -9,6 +9,10 @@ public struct Dimensions
 	public int BufferWidth;
 	public int BufferHeight;
 
+	public int VerticalCenter => WindowHeight / 2;
+
+	public int HorizontalCenter => WindowWidth / 2;
+
 	public static Dimensions Current => new()
 	{
 		WindowWidth = Console.WindowWidth,

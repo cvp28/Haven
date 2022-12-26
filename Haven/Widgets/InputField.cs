@@ -2,6 +2,14 @@
 
 namespace Haven;
 
+public enum InputFilter
+{
+	None,
+	Numerics,
+	NumericsWithDots,
+	NumericsWithSingleDot,
+}
+
 public class InputField : Widget
 {
 	public int X { get; set; }
@@ -15,11 +23,11 @@ public class InputField : Widget
 	public string Prompt { get; set; }
 	private StringBuilder Buffer;
 	private List<string> History;
-	private readonly object BufferLock;
 
 	private int CurrentBufferIndex = 0;
 
 	public Action<string> OnInput { get; set; }
+	public InputFilter Filter { get; set; }
 
 	public InputField(int X, int Y, string Prompt)
 	{
@@ -29,9 +37,10 @@ public class InputField : Widget
 		CursorForeground = ConsoleColor.Black;
 		CursorBackground = ConsoleColor.White;
 
+		Filter = InputFilter.None;
+
 		Buffer = new();
 		History = new();
-		BufferLock = new();
 		OnInput = null;
 	}
 
@@ -43,16 +52,16 @@ public class InputField : Widget
 		this.CursorForeground = CursorForeground;
 		this.CursorBackground = CursorBackground;
 
+		Filter = InputFilter.None;
+
 		Buffer = new();
 		History = new();
-		BufferLock = new();
 		OnInput = null;
 	}
 
-	public override void Draw(IRenderer s)
+	public override void Draw(Renderer s)
 	{
-		lock (BufferLock)
-			s.WriteStringAt(X, Y, $"{Prompt}{Buffer}");
+		s.WriteStringAt(X, Y, $"{Prompt}{Buffer}");
 
 		if (DrawCursor && Focused)
 			s.AddColorsAt(X + Prompt.Length + CurrentBufferIndex, Y, CursorForeground, CursorBackground);
@@ -60,9 +69,8 @@ public class InputField : Widget
 
 	public void Clear()
 	{
-		lock (BufferLock)
-			while (CurrentBufferIndex > 0)
-				Backspace();
+		while (CurrentBufferIndex > 0)
+			Backspace();
 	}
 
 	private void CursorToStart()
@@ -134,14 +142,36 @@ public class InputField : Widget
 
 			default:
 				char c = cki.KeyChar;
-				bool Valid = char.IsLetterOrDigit(c) || char.IsPunctuation(c) || char.IsWhiteSpace(c);
+				bool Valid = false;
+
+				switch (Filter)
+				{
+					case InputFilter.None:
+						Valid = char.IsLetterOrDigit(c) || char.IsPunctuation(c) || char.IsWhiteSpace(c) || char.IsSymbol(c);
+						break;
+
+					case InputFilter.Numerics:
+						Valid = char.IsDigit(c);
+						break;
+
+					case InputFilter.NumericsWithDots:
+						Valid = char.IsDigit(c) || c == '.';
+						break;
+
+					case InputFilter.NumericsWithSingleDot:
+
+						if (Buffer.ToString().Contains('.'))
+							Valid = char.IsDigit(c);
+						else
+							Valid = char.IsDigit(c) || c == '.';
+
+						break;
+				}
 
 				if (!Valid)
 					break;
 
-				lock (BufferLock)
-					Buffer.Insert(CurrentBufferIndex, c);
-
+				Buffer.Insert(CurrentBufferIndex, c);
 				CurrentBufferIndex++;
 				break;
 		}

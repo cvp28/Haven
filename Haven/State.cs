@@ -17,7 +17,12 @@ public struct State
 	public ConsoleKeyInfo KeyInfo;
 	public Dimensions Dimensions;
 
-	// Tracks render performance as reported asynchronously by the render thread
+	// Tracks render performance as reported by the renderer
 	public long FPS;
 	public long LastFrameTime;
+
+	public int WidgetRenderTimeMs;
+	public int StdoutWriteTimeMs;
+	public int DiagTime1Ms;
+	public int DiagTime2Ms;
 }

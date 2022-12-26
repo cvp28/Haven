@@ -38,7 +38,7 @@ public class Label : Widget
 		BackgroundColor = Background;
 	}
 
-	public override void Draw(IRenderer s)
+	public override void Draw(Renderer s)
 	{
 		if (Text.Length == 0) { return; }
 		

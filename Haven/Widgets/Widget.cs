@@ -13,7 +13,7 @@ public abstract class Widget
 		Visible = true;
 	}
 
-	public abstract void Draw(IRenderer s);
+	public abstract void Draw(Renderer s);
 
 	public abstract void OnConsoleKey(ConsoleKeyInfo cki);
 

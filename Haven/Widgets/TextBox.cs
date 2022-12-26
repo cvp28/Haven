@@ -12,103 +12,69 @@ public class TextBox : Widget
 	public bool CursorVisible { get; set; }
 	public int CursorBlinkIntervalMs { get; set; }
 
-	public int Width { get; private set; }
-	public int Height { get; private set; }
+	public int Width { get; set; }
+	public int Height { get; set; }
 
 	private CharacterInfo[] ScreenBuffer;
 	private CharacterInfo[] ClearBuffer;
-	private int TotalCells;
+	private CharacterInfo[] TempBuffer;
 
 	private bool DoCursorRender;
 
+	private bool DoLogging;
+	private FileStream LogStream;
+	private StreamWriter LogStreamWriter;
+
+	private readonly int ScreenBufferWidth = Console.LargestWindowWidth;
+	private readonly int ScreenBufferHeight = Console.LargestWindowHeight;
+
+	private readonly int ScreenBufferSize = Console.LargestWindowWidth * Console.LargestWindowHeight;
+
+	/// <summary>
+	/// Creates a fullscreen TextBox
+	/// </summary>
 	public TextBox()
 	{
 		X = 0;
 		Y = 0;
 
-		DoCursorRender = true;
-		Task.Run(() =>
-		{
-			// gotta love english inside of if statements
-			while (this is not null)
-			{
-				Thread.Sleep(CursorBlinkIntervalMs);
-				DoCursorRender = !DoCursorRender;
-
-			}
-		});
-
-		CursorX = 0;
-		CursorY = 0;
-		CursorVisible = true;
-		CursorBlinkIntervalMs = 250;
+		DoLogging = false;
 
 		Width = Console.WindowWidth - 2;
 		Height = Console.WindowHeight - 2;
 
-		TotalCells = Width * Height;
-
-		ScreenBuffer = new CharacterInfo[TotalCells];
-		ClearBuffer = new CharacterInfo[TotalCells];
-
-		for (int i = 0; i < TotalCells; i++)
-		{
-			ClearBuffer[i].Character = ' ';
-			ClearBuffer[i].Foreground = ConsoleColor.White;
-			ClearBuffer[i].Background = ConsoleColor.Black;
-			ClearBuffer[i].DoColors = false;
-		}
-
-		Clear();
+		SetupCursor();
+		InitializeBuffers();
 	}
 
+	/// <summary>
+	/// Creates a TextBox at the desired location with the desired width and height
+	/// </summary>
 	public TextBox(int X, int Y, int Width, int Height) : base()
 	{
 		this.X = X;
 		this.Y = Y;
 
-		DoCursorRender = true;
-		Task.Run(() =>
-		{
-			// gotta love english inside of if statements
-			while (this is not null)
-			{
-				Thread.Sleep(CursorBlinkIntervalMs);
-				DoCursorRender = !DoCursorRender;
-				
-			}
-		});
-
-		CursorX = 0;
-		CursorY = 0;
-		CursorVisible = true;
-		CursorBlinkIntervalMs = 250;
+		DoLogging = false;
 
 		this.Width = Width;
 		this.Height = Height;
 
-		TotalCells = Width * Height;
-
-		ScreenBuffer = new CharacterInfo[TotalCells];
-		ClearBuffer = new CharacterInfo[TotalCells];
-
-		for (int i = 0; i < TotalCells; i++)
-		{
-			ClearBuffer[i].Character = ' ';
-			ClearBuffer[i].Foreground = ConsoleColor.White;
-			ClearBuffer[i].Background = ConsoleColor.Black;
-			ClearBuffer[i].DoColors = false;
-		}
-
-		Clear();
+		SetupCursor();
+		InitializeBuffers();
 	}
 
+	/// <summary>
+	/// Creates an auto-sized textbox according to the desired screen partition
+	/// </summary>
 	public TextBox(ScreenSpace s) : base()
 	{
 		X = 0;
 		Y = 0;
 		Width = 1;
 		Height = 1;
+
+		DoLogging = false;
 
 		Dimensions CurrentDimensions = Dimensions.Current;
 
@@ -160,6 +126,17 @@ public class TextBox : Widget
 				break;
 		}
 
+		SetupCursor();
+		InitializeBuffers();
+	}
+
+	private void SetupCursor()
+	{
+		CursorX = 0;
+		CursorY = 0;
+		CursorVisible = true;
+		CursorBlinkIntervalMs = 250;
+
 		DoCursorRender = true;
 		Task.Run(() =>
 		{
@@ -170,18 +147,15 @@ public class TextBox : Widget
 				DoCursorRender = !DoCursorRender;
 			}
 		});
+	}
 
-		CursorX = 0;
-		CursorY = 0;
-		CursorVisible = true;
-		CursorBlinkIntervalMs = 250;
+	private void InitializeBuffers()
+	{
+		ScreenBuffer = new CharacterInfo[ScreenBufferSize];
+		ClearBuffer = new CharacterInfo[ScreenBufferSize];
+		TempBuffer = new CharacterInfo[ScreenBufferSize];
 
-		TotalCells = Width * Height;
-
-		ScreenBuffer = new CharacterInfo[TotalCells];
-		ClearBuffer = new CharacterInfo[TotalCells];
-
-		for (int i = 0; i < TotalCells; i++)
+		for (int i = 0; i < ScreenBufferSize; i++)
 		{
 			ClearBuffer[i].Character = ' ';
 			ClearBuffer[i].Foreground = ConsoleColor.White;
@@ -201,9 +175,8 @@ public class TextBox : Widget
 		this.Y = Y;
 	}
 
-	public void SetDimensions(int Width, int Height)
+	private void SetDimensions(int Width, int Height)
 	{
-
 		this.Width = Width - 2;
 		this.Height = Height - 2;
 	}
@@ -218,39 +191,94 @@ public class TextBox : Widget
 		return ValidX && ValidY;
 	}
 
+	public void Resize(int NewWidth, int NewHeight)
+	{
+		if (Width == NewWidth && Height == NewHeight)
+			return;
+
+		//	int OriginalWidth = Width;
+		//	int OriginalHeight = Height;
+		//	
+		//	// Make sure TempBuffer is clear first
+		//	Array.Copy(ClearBuffer, TempBuffer, ScreenBufferSize);
+		//	
+		//	// Copy current buffer (before resizing) to TempBuffer
+		//	Array.Copy(ScreenBuffer, TempBuffer, OriginalWidth * OriginalHeight);
+		//	
+		Width = NewWidth;
+		Height = NewHeight;
+		//	
+		//	for (int i = 0; i < OriginalWidth * OriginalHeight; i++)
+		//	{
+		//	
+		//	}
+	}
+
 	public void Clear()
 	{
-		Array.Copy(ClearBuffer, ScreenBuffer, TotalCells);
+		Array.Copy(ClearBuffer, ScreenBuffer, ScreenBufferSize);
 		CursorX = 0;
 		CursorY = 0;
 	}
 
-	public override void Draw(IRenderer s)
+	public override void Draw(Renderer s)
 	{
+		// Draw window border
 		s.DrawBox(X, Y, Width + 2, Height + 2);
 
-		s.CopyToBuffer2D(X + 1, Y + 1, Width, ScreenBuffer);
+		// Draw buffer view
+		s.CopyToBuffer2D(X + 1, Y + 1, Width, Height, ScreenBufferWidth, ref ScreenBuffer);
 
-		if (DoCursorRender && CursorVisible)
+		if (ShouldDrawCursor())
 			s.AddColorsAt(X + CursorX + 1, Y + CursorY + 1, ConsoleColor.Black, ConsoleColor.White);
 	}
 
-	public override void OnConsoleKey(ConsoleKeyInfo cki)
+	private bool ShouldDrawCursor()
 	{
+		bool XGood = CursorX < X + Width - 1;
+		bool YGood = CursorY < Y + Height - 1;
 
+		bool IsCursorInView = XGood && YGood;
+
+		return DoCursorRender && CursorVisible && IsCursorInView;
 	}
 
-	private bool ReachedWidthLimit() => CursorX == Width - 1;
+	public override void OnConsoleKey(ConsoleKeyInfo cki) { }
 
-	private bool ReachedHeightLimit() => CursorY == Height - 1;
+	public void SetLogFile(string Path)
+	{
+		DoLogging = true;
+
+		if (LogStream is not null)
+			LogStream.Dispose();
+
+		if (LogStreamWriter is not null)
+			LogStreamWriter.Dispose();
+
+		LogStream = File.Open(Path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+		LogStreamWriter = new(LogStream);
+
+		LogStreamWriter.AutoFlush = true;
+	}
+
+	public void DisableLogFile()
+	{
+		DoLogging = false;
+		LogStream?.Dispose();
+		LogStreamWriter?.Dispose();
+	}
+
+	private bool ReachedWidthLimit() => CursorX >= Width - 1;
+
+	private bool ReachedHeightLimit() => CursorY >= Height - 1;
 
 	public void ScrollDown()
 	{
 		// Shift entire buffer up by one line
-		Array.Copy(ScreenBuffer, Width, ScreenBuffer, 0, ScreenBuffer.Length - Width);
+		Array.Copy(ScreenBuffer, ScreenBufferWidth, ScreenBuffer, 0, ScreenBuffer.Length - ScreenBufferWidth);
 
 		// Clear last line
-		for (int i = Width * (Height - 1); i < TotalCells; i++)
+		for (int i = ScreenBufferWidth * (ScreenBufferHeight - 1); i < ScreenBufferSize; i++)
 			ScreenBuffer[i] = ClearBuffer[i];
 	}
 
@@ -264,10 +292,10 @@ public class TextBox : Widget
 
 	public int IX(int X, int Y)
 	{
-		int Cell = Y * Width + X;
+		int Cell = Y * ScreenBufferWidth + X;
 
-		if (Cell > TotalCells)
-			return Cell % TotalCells;
+		if (Cell >= ScreenBufferSize)
+			return Cell % ScreenBufferSize;
 		else
 			return Cell;
 	}
@@ -296,8 +324,24 @@ public class TextBox : Widget
 
 	public void NextLine()
 	{
+		if (DoLogging)
+			LogStreamWriter.WriteLine();
+
 		if (ReachedHeightLimit())
-			ScrollDown();
+		{
+			int LineCount ;
+
+			if (CursorY > Height - 1)
+			{
+				LineCount = CursorY - Height + 2;
+				CursorY = Height - 1;
+			}
+			else
+				LineCount = 1;
+
+			for (int i = 0; i < LineCount; i++)
+				ScrollDown();
+		}
 		else
 			CursorY++;
 
@@ -336,7 +380,7 @@ public class TextBox : Widget
 
 	public void Write(string Text, ConsoleColor Foreground, ConsoleColor Background)
 	{
-		for (int i = 0; i <  Text.Length; i++)
+		for (int i = 0; i < Text.Length; i++)
 		{
 			if (ReachedWidthLimit() || i == Text.Length - 1)
 				AddClear();
@@ -347,6 +391,9 @@ public class TextBox : Widget
 
 	public void Write(char Character)
 	{
+		if (DoLogging)
+			LogStreamWriter.Write(Character);
+
 		if (Character == '\r')
 		{
 			CursorX = 0;
@@ -365,6 +412,9 @@ public class TextBox : Widget
 
 	public void Write(char Character, ConsoleColor Foreground, ConsoleColor Background)
 	{
+		if (DoLogging)
+			LogStreamWriter.Write(Character);
+
 		if (Character == '\r')
 		{
 			CursorX = 0;

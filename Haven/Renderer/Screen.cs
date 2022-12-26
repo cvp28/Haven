@@ -1,8 +1,9 @@
-﻿using System.Text;
+﻿using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Haven;
 
-public class Screen : IRenderer
+public class Screen : Renderer
 {
 
 	private Stream StandardOutput;
@@ -14,6 +15,10 @@ public class Screen : IRenderer
 
 	private int WindowWidth;
 	private int WindowHeight;
+
+	private Stopwatch sw;
+
+	private readonly int ScreenBufferSize = Console.LargestWindowWidth * Console.LargestWindowHeight * 14;
 
 	public Screen()
 	{
@@ -30,21 +35,24 @@ public class Screen : IRenderer
 		TotalBytes = TotalCells * 14;
 
 		// Create screen buffer
-		ScreenBuffer = new byte[TotalBytes];			// Primary screen buffer for writing data to screen
-		FinalFrame = new byte[TotalBytes];				// The final frame that is written to the screen (stripped of NULL bytes from the ScreenBuffer writing to StandardOut)
-		ClearScreen = new byte[TotalBytes];				// A buffer intended for use in clearing the ScreenBuffer through a simple Array.Copy call
+		ScreenBuffer = new byte[ScreenBufferSize];			// Primary screen buffer for writing data to screen
+		FinalFrame = new byte[ScreenBufferSize];				// The final frame that is written to the screen (stripped of NULL bytes from the ScreenBuffer writing to StandardOut)
+		ClearScreen = new byte[ScreenBufferSize];				// A buffer intended for use in clearing the ScreenBuffer through a simple Array.Copy call
 
 		// Initialize each element of ClearScreen to the values that will be held for a clear ScreenBuffer before every frame is drawn
-		for (int i = 0; i < TotalCells; i++)
+		for (int i = 0; i < Console.LargestWindowWidth * Console.LargestWindowHeight; i++)
 			ClearScreen[i * 14 + 10] = (byte) ' ';
 
 		// Initialize each element of screen buffer
 		ClearBuffer();
+
+		sw = new();
 	}
 
-
-	public void Render(List<Widget> Widgets)
+	public override void Render(IEnumerable<Widget> Widgets)
 	{
+		Console.CursorVisible = false;
+
 		// Reset cursor to 0, 0
 		StandardOutput.Write(Sequences.CursorToTopLeft, 0, Sequences.CursorToTopLeft.Length);
 
@@ -52,39 +60,64 @@ public class Screen : IRenderer
 
 		// -- WIDGET RENDERING STARTS HERE --
 
+		sw.Restart();
+
 		if (Widgets is not null)
 			foreach (Widget w in Widgets)
 				if (w.Visible)
 					w.Draw(this);
 
+		WidgetRenderTimeMs = (int) sw.ElapsedMilliseconds;
+
 		// -- WIDGET RENDERING ENDS HERE --
 
 		// Copy every non-NULL byte in the primary screen buffer to the secondary screen buffer
 		// so that way we're not writing any useless information to the output stream
+		sw.Restart();
+
 		int FrameDataIndex = 0;
 
-		for (int i = 0; i < ScreenBuffer.Length; i++)
+		for (int i = 0; i < TotalBytes; i++)
 			if (ScreenBuffer[i] != 0)
 			{
 				FinalFrame[FrameDataIndex] = ScreenBuffer[i];
 				FrameDataIndex++;
 			}
 
+		DiagTime1Ms = (int) sw.ElapsedMilliseconds;
+
+		sw.Restart();
+
 		// Write cleansed buffer to screen
 		StandardOutput.Write(FinalFrame, 0, FrameDataIndex);
+
+		StdoutWriteTimeMs = (int) sw.ElapsedMilliseconds;
+	}
+
+	public override void UpdateScreenDimensions()
+	{
+		WindowWidth = Console.WindowWidth;
+		WindowHeight = Console.WindowHeight;
+
+		TotalCells = WindowWidth * WindowHeight;
+		TotalBytes = TotalCells * 14;
+
+		//Array.Resize(ref ClearScreen, TotalBytes);
+		//Array.Resize(ref ScreenBuffer, TotalBytes);
+		//Array.Resize(ref FinalFrame, TotalBytes);
 	}
 
 	private int IX(int X, int Y)
 	{
 		int Cell = Y * WindowWidth + X;
 
-		if (Cell > TotalCells)
+		if (Cell >= TotalCells)
 			return Cell % TotalCells;
 		else
 			return Cell;
 	}
 
-	public void WriteStringAt(int X, int Y, string Text)
+	public override void WriteStringAt(int X, int Y, string Text)
 	{
 		int CellIndex = IX(X, Y);
 
@@ -92,7 +125,7 @@ public class Screen : IRenderer
 			ModifyCharAt(CellIndex + i, Text[i]);
 	}
 
-	public void WriteColorStringAt(int X, int Y, string Text, ConsoleColor Foreground, ConsoleColor Background)
+	public override void WriteColorStringAt(int X, int Y, string Text, ConsoleColor Foreground, ConsoleColor Background)
 	{
 		if (Text.Length == 0) { return; }
 
@@ -110,28 +143,37 @@ public class Screen : IRenderer
 		AddClearAt(ClearIndex);
 	}
 
-	public void DrawBox(int X, int Y, int Width, int Height)
+	public override void DrawBox(int X, int Y, int Width, int Height)
 	{
-		int CellIndex = IX(X, Y);
+		int TopLeftIndex = IX(X, Y);
+		int TopRightIndex = IX(X + Width - 1, Y);
+		int BottomLeftIndex = IX(X, Y + Height - 1);
+		int BottomRightIndex = IX(X + Width - 1, Y + Height - 1);
 
-		ModifyCharAt(CellIndex, BoxChars.TopLeft);
-		ModifyCharAt(CellIndex + Width - 1, BoxChars.TopRight);
-		ModifyCharAt(CellIndex + (WindowWidth * (Height - 1)), BoxChars.BottomLeft);
-		ModifyCharAt(CellIndex + (WindowWidth * (Height - 1) + Width - 1), BoxChars.BottomRight);
+		ModifyCharAt(TopLeftIndex, BoxChars.TopLeft);
+		ModifyCharAt(TopRightIndex, BoxChars.TopRight);
+		ModifyCharAt(BottomLeftIndex, BoxChars.BottomLeft);
+		ModifyCharAt(BottomRightIndex, BoxChars.BottomRight);
 
 
 		// Draw top and bottom
 		for (int i = 1; i <= Width - 2; i++)
 		{
-			ModifyCharAt(CellIndex + i, BoxChars.Horizontal);
-			ModifyCharAt(CellIndex + (WindowWidth * (Height - 1) + i), BoxChars.Horizontal);
+			int TopIndex = IX(X + i, Y);
+			int BottomIndex = IX(X + i, Y + Height - 1);
+
+			ModifyCharAt(TopIndex, BoxChars.Horizontal);
+			ModifyCharAt(BottomIndex, BoxChars.Horizontal);
 		}
 
 		// Draw left and right
 		for (int i = 1; i <= Height - 2; i++)
 		{
-			ModifyCharAt(CellIndex + (WindowWidth * i), BoxChars.Vertical);
-			ModifyCharAt(CellIndex + (WindowWidth * i) + Width - 1, BoxChars.Vertical);
+			int LeftIndex = IX(X, Y + i);
+			int RightIndex = IX(X + Width - 1, Y + i);
+
+			ModifyCharAt(LeftIndex, BoxChars.Vertical);
+			ModifyCharAt(RightIndex, BoxChars.Vertical);
 		}
 	}
 
@@ -174,7 +216,7 @@ public class Screen : IRenderer
 		ScreenBuffer[BufferIndex] = (byte) Character;
 	}
 
-	public void AddColorsAt(int X, int Y, ConsoleColor Foreground, ConsoleColor Background)
+	public override void AddColorsAt(int X, int Y, ConsoleColor Foreground, ConsoleColor Background)
 	{
 		int CellIndex = IX(X, Y);
 
@@ -183,27 +225,27 @@ public class Screen : IRenderer
 		AddClearAt(CellIndex);
 	}
 
-	public void CopyToBuffer2D(int X, int Y, int LineWidth, CharacterInfo[] Buffer)
+	public override void CopyToBuffer2D(int X, int Y, int ViewWidth, int ViewHeight, int BufferWidth, ref CharacterInfo[] Buffer)
 	{
 		int OffX = 0;
 		int OffY = 0;
 
-		for (int i = 0; i < Buffer.Length; i++)
+		for (int i = 0; i < ViewWidth * ViewHeight; i++)
 		{
 			int CellIndex = IX(X + OffX, Y + OffY);
 
-			ModifyCharAt(CellIndex, Buffer[i].Character);
+			ModifyCharAt(CellIndex, Buffer[OffX + BufferWidth * OffY].Character);
 
 			if (Buffer[i].DoColors)
 			{
-				ModifyForegroundAt(CellIndex, Sequences.ToFgByteArray(Buffer[i].Foreground));
-				ModifyBackgroundAt(CellIndex, Sequences.ToBgByteArray(Buffer[i].Background));
+				ModifyForegroundAt(CellIndex, Sequences.ToFgByteArray(Buffer[OffX + BufferWidth * OffY].Foreground));
+				ModifyBackgroundAt(CellIndex, Sequences.ToBgByteArray(Buffer[OffX + BufferWidth * OffY].Background));
 			}
 			
 			if (Buffer[i].SignalAnsiClear)
 				AddClearAt(CellIndex);
 
-			if (OffX == LineWidth - 1)
+			if (OffX == ViewWidth - 1)
 			{
 				OffX = 0;
 				OffY++;

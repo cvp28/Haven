@@ -138,31 +138,31 @@ public class HConsole : Widget
 		CursorY = 0;
 	}
 
-	public override void Draw(IRenderer s)
+	public override void Draw(Renderer s)
 	{
-		if (IsFullscreen)
-			DrawFullscreen(s);
-		else
-			DrawWindowed(s);
+		//	if (IsFullscreen)
+		//		DrawFullscreen(s);
+		//	else
+		//		DrawWindowed(s);
 	}
 
-	private void DrawFullscreen(IRenderer s)
-	{
-		s.CopyToBuffer2D(0, 0, Width, ScreenBuffer);
-
-		if (DoCursorRender && CursorVisible)
-			s.AddColorsAt(X + CursorX, Y + CursorY, CursorForeground, CursorBackground);
-	}
-
-	private void DrawWindowed(IRenderer s)
-	{
-		s.DrawBox(X, Y, Width + 2, Height + 2);
-
-		s.CopyToBuffer2D(X + 1, Y + 1, Width, ScreenBuffer);
-
-		if (DoCursorRender && CursorVisible)
-			s.AddColorsAt(X + CursorX + 1, Y + CursorY + 1, CursorForeground, CursorBackground);
-	}
+	//	private void DrawFullscreen(Renderer s)
+	//	{
+	//		s.CopyToBuffer2D(0, 0, Width, Height, Scr ref ScreenBuffer);
+	//	
+	//		if (DoCursorRender && CursorVisible)
+	//			s.AddColorsAt(X + CursorX, Y + CursorY, CursorForeground, CursorBackground);
+	//	}
+	//	
+	//	private void DrawWindowed(Renderer s)
+	//	{
+	//		s.DrawBox(X, Y, Width + 2, Height + 2);
+	//	
+	//		s.CopyToBuffer2D(X + 1, Y + 1, Width, Height, ref ScreenBuffer);
+	//	
+	//		if (DoCursorRender && CursorVisible)
+	//			s.AddColorsAt(X + CursorX + 1, Y + CursorY + 1, CursorForeground, CursorBackground);
+	//	}
 
 	public override void OnConsoleKey(ConsoleKeyInfo cki) => InputBuffer.Enqueue(cki);
 

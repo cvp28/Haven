@@ -1,5 +1,7 @@
 ﻿
 
+using System.Runtime.InteropServices;
+
 namespace Haven;
 
 public class Menu : Widget
@@ -10,12 +12,16 @@ public class Menu : Widget
 	private List<string> Options;
 	private List<Action> Actions;
 
+	public int OptionCount => Options.Count;
+
 	public MenuStyle SelectedOptionStyle { get; set; }
+
+	public Alignment TextAlignment { get; set; }
 
 	/// <summary>
 	/// Determines if the options will always be drawn styled regardless of if the menu is focused
 	/// </summary>
-	public bool AlwaysStyle;
+	public bool AlwaysStyle { get; set; }
 
 	public int SelectedOption { get; private set; }
 
@@ -39,42 +45,115 @@ public class Menu : Widget
 		Actions.Add(Action);
 	}
 
+	private bool ValidOptionNumber(int OptionNumber) => OptionNumber >= 0 && OptionNumber < Options.Count;
+
+	public void EditOption(int OptionNumber, string NewText)
+	{
+		if (!ValidOptionNumber(OptionNumber))
+			return;
+
+		Options[OptionNumber] = NewText;
+	}
+
+	public void EditOption(int OptionNumber, Action NewAction)
+	{
+		if (!ValidOptionNumber(OptionNumber))
+			return;
+
+		Actions[OptionNumber] = NewAction;
+	}
+
+	public void EditOption(int OptionNumber, string NewText, Action NewAction)
+	{
+		if (!ValidOptionNumber(OptionNumber))
+			return;
+
+		Options[OptionNumber] = NewText;
+		Actions[OptionNumber] = NewAction;
+	}
+
+	public string GetOptionText(int OptionNumber)
+	{
+		if (!ValidOptionNumber(OptionNumber))
+			return string.Empty;
+
+		return Options[OptionNumber];
+	}
+
 	public void RemoveAllOptions()
 	{
 		Options.Clear();
 		Actions.Clear();
 	}
 
-	public override void Draw(IRenderer s)
+	public void CenterTo(Dimensions d)
 	{
-		int OptionNum = 0;
-		foreach (var Option in Options)
-		{
-			if (OptionNum == SelectedOption)
-				DrawSelectedOption(s, OptionNum);
-			else
-				s.WriteStringAt(X, Y + OptionNum, $"{Option}");
+		int LongestOptionLength = Options.Max(op => op.Length);
 
-			OptionNum++;
+		X = d.HorizontalCenter - (LongestOptionLength / 2);
+		Y = d.VerticalCenter - (int) Math.Ceiling( OptionCount / 2.0f );
+	}
+
+	public override void Draw(Renderer s)
+	{
+		switch (TextAlignment)
+		{
+			case Alignment.Left:
+				DrawLeftAligned();
+				break;
+
+			case Alignment.Center:
+				DrawCenterAligned();
+				break;
+
+			case Alignment.Right:
+				DrawLeftAligned();
+				break;
+		}
+
+		void DrawLeftAligned()
+		{
+			for (int i = 0; i < Options.Count; i++) 
+			{
+				if (i == SelectedOption)
+					DrawStyledText(X, Y + i, s, Options[i]);
+				else
+					s.WriteStringAt(X, Y + i, $"{Options[i]}");
+			}
+		}
+
+		void DrawCenterAligned()
+		{
+			int LongestOptionLength = Options.Max(op => op.Length);
+
+			for (int i = 0; i < Options.Count; i++)
+			{
+				int CurrentX = X + (LongestOptionLength / 2) - (Options[i].Length / 2);
+
+				if (i == SelectedOption)
+					DrawStyledText(CurrentX, Y + i, s, Options[i]);
+				else
+					s.WriteStringAt(CurrentX, Y + i, $"{Options[i]}");
+			}
 		}
 	}
 
-	private void DrawSelectedOption(IRenderer s, int OptionNum)
+	private void DrawStyledText(int X, int Y, Renderer s, string Text)
 	{
 		if (!Focused && !AlwaysStyle)
 		{
-			s.WriteStringAt(X, Y + OptionNum, $"{Options[OptionNum]}");
+			s.WriteStringAt(X, Y, Text);
 			return;
 		}
 
 		switch (SelectedOptionStyle)
 		{
 			case MenuStyle.Arrow:
-				s.WriteStringAt(X, Y + OptionNum, $"{Options[OptionNum]} <");
+				s.WriteStringAt(X, Y, $"{Text} <");
 				break;
 
 			case MenuStyle.Highlighted:
-				s.WriteColorStringAt(X, Y + OptionNum, $"{Options[OptionNum]}", ConsoleColor.Black, ConsoleColor.White);
+				s.WriteColorStringAt(X, Y, $"{Text}", ConsoleColor.Black, ConsoleColor.White);
 				break;
 		}
 	}

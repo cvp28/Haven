@@ -26,7 +26,7 @@ public class WidgetGroup
 			w.Visible = true;
 
 		if (OnShow is not null && DoEvent)
-			OnShow(this);
+				OnShow(this);
 	}
 
 	public void Hide(bool DoEvent = true)
@@ -35,7 +35,14 @@ public class WidgetGroup
 			w.Visible = false;
 
 		if (OnHide is not null && DoEvent)
-			OnHide(this);
+				OnHide(this);
+	}
+
+	public void AddWidgets(params Widget[] Widgets)
+	{
+		foreach (Widget w in Widgets)
+			if (!this.Widgets.Contains(w))
+				this.Widgets.Add(w);
 	}
 
 	public void ToggleVisibility()
