@@ -113,9 +113,9 @@ public class ConWriteRenderer : Renderer
 		int Cell = Y * WindowWidth + X;
 
 		if (Cell >= TotalCells)
-			return Cell % TotalCells;
+			return Math.Abs(Cell % TotalCells);
 		else
-			return Cell;
+			return Math.Abs(Cell);
 	}
 
 	public override void AddColorsAt(int X, int Y, ConsoleColor Foreground, ConsoleColor Background)

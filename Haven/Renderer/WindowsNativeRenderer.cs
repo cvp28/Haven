@@ -97,9 +97,9 @@ public class WindowsNativeRenderer : Renderer
 		int Cell = X + WindowWidthCells * Y;
 
 		if (Cell >= TotalCells)
-			return Cell % TotalCells;
+			return Math.Abs(Cell % TotalCells);
 		else
-			return Cell;
+			return Math.Abs(Cell);
 	}
 
 	public override void AddColorsAt(int X, int Y, ConsoleColor Foreground, ConsoleColor Background)

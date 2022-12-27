@@ -86,16 +86,28 @@ public class Menu : Widget
 		Actions.Clear();
 	}
 
-	public void CenterTo(Dimensions d)
+	public void CenterTo(Dimensions d, int XOff = 0, int YOff = 0)
 	{
+		if (Options.Count == 0)
+			return;
+
 		int LongestOptionLength = Options.Max(op => op.Length);
 
-		X = d.HorizontalCenter - (LongestOptionLength / 2);
-		Y = d.VerticalCenter - (int) Math.Ceiling( OptionCount / 2.0f );
+		X = d.HorizontalCenter - (LongestOptionLength / 2) + XOff;
+		Y = d.VerticalCenter - (int) Math.Ceiling( OptionCount / 2.0f ) + YOff;
+
+		if (X < 0)
+			X = 0;
+
+		if (Y < 0)
+			Y = 0;
 	}
 
 	public override void Draw(Renderer s)
 	{
+		if (Options.Count == 0)
+			return;
+
 		switch (TextAlignment)
 		{
 			case Alignment.Left:
@@ -118,7 +130,7 @@ public class Menu : Widget
 				if (i == SelectedOption)
 					DrawStyledText(X, Y + i, s, Options[i]);
 				else
-					s.WriteStringAt(X, Y + i, $"{Options[i]}");
+					s.WriteStringAt(X, Y + i, Options[i]);
 			}
 		}
 
@@ -133,7 +145,7 @@ public class Menu : Widget
 				if (i == SelectedOption)
 					DrawStyledText(CurrentX, Y + i, s, Options[i]);
 				else
-					s.WriteStringAt(CurrentX, Y + i, $"{Options[i]}");
+					s.WriteStringAt(CurrentX, Y + i, Options[i]);
 			}
 		}
 	}

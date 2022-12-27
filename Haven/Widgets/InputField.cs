@@ -67,6 +67,18 @@ public class InputField : Widget
 			s.AddColorsAt(X + Prompt.Length + CurrentBufferIndex, Y, CursorForeground, CursorBackground);
 	}
 
+	public void CenterTo(Dimensions d, int XOff = 0, int YOff = 0)
+	{
+		X = d.HorizontalCenter - ((Prompt.Length + Buffer.Length) / 2) + XOff;
+		Y = d.VerticalCenter + YOff;
+
+		if (X < 0)
+			X = 0;
+
+		if (Y < 0)
+			Y = 0;
+	}
+
 	public void Clear()
 	{
 		while (CurrentBufferIndex > 0)
