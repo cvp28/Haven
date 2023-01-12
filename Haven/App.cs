@@ -379,6 +379,34 @@ public class App
 	/// <returns>The layer with the specified ID or null if the ID does not correspond to any layer</returns>
 	public Layer GetLayer(string ID) => Layers.FirstOrDefault(kvp => kvp.Key == ID).Value;
 
+	public T GetLayer<T>(string ID) where T : Layer
+	{
+		Layer l = Layers.FirstOrDefault(kvp => kvp.Key == ID).Value;
+
+		if (l is null)
+			return null;
+
+		try
+		{
+			T temp = l as T;
+			return temp;
+		}
+		catch (Exception)
+		{
+			return null;
+		}
+	}
+
+	public Layer GetLayer(int ZIndex)
+	{
+		bool ZIndexInvalid = ZIndex < 0 || ZIndex >= ActiveLayers.Length;
+
+		if (ZIndexInvalid)
+			return null;
+
+		return ActiveLayers[ZIndex];
+	}
+
 	/// <summary>
 	/// Sets a layer with the specified index to a layer with the specified ID. ID can be left empty to just hide the layer at the specified index.
 	/// </summary>

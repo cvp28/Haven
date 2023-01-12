@@ -18,7 +18,7 @@ public abstract class Layer
 		Widgets = new();
 		_UpdateTasks = new();
 
-		var methods = GetType().GetMethods(BindingFlags.NonPublic | BindingFlags.Instance).Where(m => m.IsDefined(typeof(UpdateTaskAttribute))).ToArray();
+		var methods = GetType().GetMethods(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance).Where(m => m.IsDefined(typeof(UpdateTaskAttribute))).ToArray();
 
 		foreach (var method in methods)
 			_UpdateTasks.Add(method.CreateDelegate(typeof(Action<State>), this) as Action<State>);
@@ -29,7 +29,7 @@ public abstract class Layer
 	/// </summary>
 	protected void AddWidgetsInternal()
 	{
-		var fields = GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Instance).Where(p => p.IsDefined(typeof(WidgetAttribute))).ToArray();
+		var fields = GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance).Where(p => p.IsDefined(typeof(WidgetAttribute))).ToArray();
 
 		foreach (var field in fields)
 			Widgets.Add(field.GetValue(this) as Widget);
