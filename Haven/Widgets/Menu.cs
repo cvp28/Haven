@@ -1,6 +1,5 @@
 ﻿
-
-using System.Runtime.InteropServices;
+using System.Collections.Concurrent;
 
 namespace Haven;
 
@@ -9,13 +8,30 @@ public class Menu : Widget
 	public int X { get; set; }
 	public int Y { get; set; }
 
-	private List<string> Options;
-	private List<Action> Actions;
+	private List<MenuOption> Options;
+
+	public MenuOption this[int Index]
+	{
+		get
+		{
+			if (!IsValidIndex(Index))
+				return null;
+
+			return Options[Index];
+		}
+
+		set
+		{
+			if (!IsValidIndex(Index))
+				return;
+
+			Options[Index] = value;
+		}
+	}
 
 	public int OptionCount => Options.Count;
 
 	public MenuStyle SelectedOptionStyle { get; set; }
-
 	public Alignment TextAlignment { get; set; }
 
 	/// <summary>
@@ -33,57 +49,30 @@ public class Menu : Widget
 		AlwaysStyle = false;
 
 		Options = new();
-		Actions = new();
 	}
 
-	public void AddOption(string Option, Action Action)
+	private bool IsValidIndex(int Index) => Index >= 0 && Index < Options.Count;
+
+	public void AddOption(string Option, Action Action, ConsoleColor Foreground = ConsoleColor.White, ConsoleColor Background = ConsoleColor.Black)
 	{
 		if (Option is null || Action is null)
 			return;
 
-		Options.Add(Option);
-		Actions.Add(Action);
-	}
+		var NewOption = new MenuOption()
+		{
+			Text = Option,
+			Action = Action,
+			TextForeground = Foreground,
+			TextBackground = Background
+		};
 
-	private bool ValidOptionNumber(int OptionNumber) => OptionNumber >= 0 && OptionNumber < Options.Count;
-
-	public void EditOption(int OptionNumber, string NewText)
-	{
-		if (!ValidOptionNumber(OptionNumber))
-			return;
-
-		Options[OptionNumber] = NewText;
-	}
-
-	public void EditOption(int OptionNumber, Action NewAction)
-	{
-		if (!ValidOptionNumber(OptionNumber))
-			return;
-
-		Actions[OptionNumber] = NewAction;
-	}
-
-	public void EditOption(int OptionNumber, string NewText, Action NewAction)
-	{
-		if (!ValidOptionNumber(OptionNumber))
-			return;
-
-		Options[OptionNumber] = NewText;
-		Actions[OptionNumber] = NewAction;
-	}
-
-	public string GetOptionText(int OptionNumber)
-	{
-		if (!ValidOptionNumber(OptionNumber))
-			return string.Empty;
-
-		return Options[OptionNumber];
+		Options.Add(NewOption);
 	}
 
 	public void RemoveAllOptions()
 	{
+		SelectedOption = 0;
 		Options.Clear();
-		Actions.Clear();
 	}
 
 	public void CenterTo(Dimensions d, int XOff = 0, int YOff = 0)
@@ -91,7 +80,7 @@ public class Menu : Widget
 		if (Options.Count == 0)
 			return;
 
-		int LongestOptionLength = Options.Max(op => op.Length);
+		int LongestOptionLength = Options.Max(op => op.Text.Length);
 
 		X = d.HorizontalCenter - (LongestOptionLength / 2) + XOff;
 		Y = d.VerticalCenter - (int) Math.Ceiling( OptionCount / 2.0f ) + YOff;
@@ -128,44 +117,44 @@ public class Menu : Widget
 			for (int i = 0; i < Options.Count; i++) 
 			{
 				if (i == SelectedOption)
-					DrawStyledText(X, Y + i, s, Options[i]);
+					DrawStyledOption(X, Y + i, s, Options[i]);
 				else
-					s.WriteStringAt(X, Y + i, Options[i]);
+					s.WriteColorStringAt(X, Y + i, Options[i].Text, Options[i].TextForeground, Options[i].TextBackground);
 			}
 		}
 
 		void DrawCenterAligned()
 		{
-			int LongestOptionLength = Options.Max(op => op.Length);
+			int LongestOptionLength = Options.Max(op => op.Text.Length);
 
 			for (int i = 0; i < Options.Count; i++)
 			{
-				int CurrentX = X + (LongestOptionLength / 2) - (Options[i].Length / 2);
+				int CurrentX = X + (LongestOptionLength / 2) - (Options[i].Text.Length / 2);
 
 				if (i == SelectedOption)
-					DrawStyledText(CurrentX, Y + i, s, Options[i]);
+					DrawStyledOption(X, Y + i, s, Options[i]);
 				else
-					s.WriteStringAt(CurrentX, Y + i, Options[i]);
+					s.WriteColorStringAt(X, Y + i, Options[i].Text, Options[i].TextForeground, Options[i].TextBackground);
 			}
 		}
 	}
 
-	private void DrawStyledText(int X, int Y, Renderer s, string Text)
+	private void DrawStyledOption(int X, int Y, Renderer s, MenuOption Option)
 	{
 		if (!Focused && !AlwaysStyle)
 		{
-			s.WriteStringAt(X, Y, Text);
+			s.WriteColorStringAt(X, Y, Option.Text, Option.TextForeground, Option.TextBackground);
 			return;
 		}
 
 		switch (SelectedOptionStyle)
 		{
 			case MenuStyle.Arrow:
-				s.WriteStringAt(X, Y, $"{Text} <");
+				s.WriteColorStringAt(X, Y, $"{Option.Text} <", Option.TextForeground, Option.TextBackground);
 				break;
 
 			case MenuStyle.Highlighted:
-				s.WriteColorStringAt(X, Y, $"{Text}", ConsoleColor.Black, ConsoleColor.White);
+				s.WriteColorStringAt(X, Y, Option.Text, Option.TextBackground, Option.TextForeground);
 				break;
 		}
 	}
@@ -192,7 +181,7 @@ public class Menu : Widget
 				break;
 
 			case ConsoleKey.Enter:
-				Actions[SelectedOption].Invoke();
+				Options[SelectedOption].Action();
 				break;
 		}
 	}

@@ -4,10 +4,37 @@ namespace Haven;
 public struct CharacterInfo
 {
 	public char Character;
+
+	public char RenderingCharacter
+	{
+		get
+		{
+			switch (Character)
+			{
+				case '\n':
+				case '\r':
+					return ' ';
+
+				default:
+					return Character;
+			}
+		}
+	}
+
 	public ConsoleColor Foreground;
 	public ConsoleColor Background;
+
 	public bool SignalAnsiClear;
 	public bool DoColors;
+
+	public CharacterInfo()
+	{
+		Character = ' ';
+		Foreground = ConsoleColor.White;
+		Background = ConsoleColor.Black;
+		SignalAnsiClear = false;
+		DoColors = true;
+	}
 
 	public short ColorsToShort()
 	{

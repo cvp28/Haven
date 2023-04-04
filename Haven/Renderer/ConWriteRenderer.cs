@@ -22,6 +22,7 @@ public class ConWriteRenderer : Renderer
 	private int TotalChars;
 	private char[] ScreenBuffer;
 	private char[] ClearScreen;
+	private byte[] FinalFrame;
 
 	private int WindowWidth;
 	private int WindowHeight;
@@ -34,6 +35,7 @@ public class ConWriteRenderer : Renderer
 
 	public ConWriteRenderer()
 	{
+		Console.OutputEncoding = Encoding.UTF8;
 		stdout = Console.OpenStandardOutput();
 
 		WindowWidth = Console.WindowWidth;
@@ -43,10 +45,10 @@ public class ConWriteRenderer : Renderer
 		TotalChars = TotalCells * 12;
 
 		CharSequences.Init();
-		Console.OutputEncoding = Encoding.UTF8;
 
 		ScreenBuffer = new char[ScreenBufferSize];
 		ClearScreen = new char[ScreenBufferSize];
+		FinalFrame = new byte[ScreenBufferSize * 2];
 
 		for (int i = 0; i < Console.LargestWindowWidth * Console.LargestWindowHeight; i++)
 		{
@@ -67,10 +69,9 @@ public class ConWriteRenderer : Renderer
 
 	public override void Render(IEnumerable<Widget> Widgets)
 	{
-		Console.CursorVisible = false;
-
-		Console.SetCursorPosition(0, 0);
 		ClearBuffer();
+		Console.SetCursorPosition(0, 0);
+		Console.CursorVisible = false;
 
 		// Render widgets
 		sw.Restart();
@@ -82,16 +83,28 @@ public class ConWriteRenderer : Renderer
 
 		WidgetRenderTimeMs = (int) sw.ElapsedMilliseconds;
 
+		// Convert screenbuffer to UTF8 byte array
 		sw.Restart();
 
 		ReadOnlySpan<byte> temp = Encoding.UTF8.GetBytes(ScreenBuffer, 0, TotalChars);
+
+		int FinalFrameCount = 0;
+
+		for (int i = 0; i < temp.Length; i++)
+		{
+			if (temp[i] == 0)
+				continue;
+
+			FinalFrame[FinalFrameCount] = temp[i];
+			FinalFrameCount++;
+		}
 
 		DiagTime1Ms = (int)sw.ElapsedMilliseconds;
 
 		// Write to stdout
 		sw.Restart();
 
-		stdout.Write(temp);
+		stdout.Write(FinalFrame, 0, FinalFrameCount);
 
 		StdoutWriteTimeMs = (int) sw.ElapsedMilliseconds;
 	}
@@ -203,7 +216,7 @@ public class ConWriteRenderer : Renderer
 		}
 	}
 
-	public override void CopyToBuffer2D(int X, int Y, int ViewWidth, int ViewHeight, int BufferWidth, ref CharacterInfo[] Buffer)
+	public override void CopyToBuffer2D(int X, int Y, int ViewWidth, int ViewHeight, int BufferWidth, Span<CharacterInfo> Buffer)
 	{
 		int OffX = 0;
 		int OffY = 0;
@@ -212,7 +225,7 @@ public class ConWriteRenderer : Renderer
 		{
 			int CellIndex = IX(X + OffX, Y + OffY);
 
-			ModifyCharAt(CellIndex, Buffer[OffX + BufferWidth * OffY].Character);
+			ModifyCharAt(CellIndex, Buffer[OffX + BufferWidth * OffY].RenderingCharacter);
 			ModifyForegroundAt(CellIndex, CharSequences.ToFgCharArray(Buffer[OffX + BufferWidth * OffY].Foreground));
 			ModifyBackgroundAt(CellIndex, CharSequences.ToBgCharArray(Buffer[OffX + BufferWidth * OffY].Background));
 

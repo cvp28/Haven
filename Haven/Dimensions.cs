@@ -13,6 +13,8 @@ public struct Dimensions
 
 	public int HorizontalCenter => WindowWidth / 2;
 
+	public int TotalCells => BufferWidth * BufferHeight;
+
 	public static Dimensions Current => new()
 	{
 		WindowWidth = Console.WindowWidth,

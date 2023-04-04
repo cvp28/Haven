@@ -11,7 +11,7 @@ public abstract class Layer
 	internal List<Widget> Widgets;
 
 	// Internally used for keeping track of delegates to UpdateTask functions
-	private List<Action<State>> _UpdateTasks;
+	protected List<Action<State>> _UpdateTasks;
 
 	public Layer()
 	{
@@ -40,22 +40,22 @@ public abstract class Layer
 	/// </summary>
 	public abstract void UpdateLayout(Dimensions d);
 
-	internal void _OnShow(App a)
+	internal void _OnShow(App a, object[] Args)
 	{
 		foreach (var Task in _UpdateTasks)
-			a.AddUpdateTask(Task.Method.Name, Task);
+			a.AddUpdateTask($"{GetType().Name}.{Task.Method.Name}", Task);
 
-		OnShow(a);
+		OnShow(a, Args);
 	}
 
 	internal void _OnHide(App a)
 	{
 		foreach (var Task in _UpdateTasks)
-			a.RemoveUpdateTask(Task.Method.Name);
+			a.RemoveUpdateTask($"{GetType().Name}.{Task.Method.Name}");
 
 		OnHide(a);
 	}
 
-	public abstract void OnShow(App a);
+	public abstract void OnShow(App a, object[] Args);
 	public abstract void OnHide(App a);
 }

@@ -17,7 +17,6 @@ public class TextBox : Widget
 
 	private CharacterInfo[] ScreenBuffer;
 	private CharacterInfo[] ClearBuffer;
-	private CharacterInfo[] TempBuffer;
 
 	private bool DoCursorRender;
 
@@ -153,8 +152,7 @@ public class TextBox : Widget
 	{
 		ScreenBuffer = new CharacterInfo[ScreenBufferSize];
 		ClearBuffer = new CharacterInfo[ScreenBufferSize];
-		TempBuffer = new CharacterInfo[ScreenBufferSize];
-
+		
 		for (int i = 0; i < ScreenBufferSize; i++)
 		{
 			ClearBuffer[i].Character = ' ';
@@ -227,7 +225,7 @@ public class TextBox : Widget
 		s.DrawBox(X, Y, Width + 2, Height + 2);
 
 		// Draw buffer view
-		s.CopyToBuffer2D(X + 1, Y + 1, Width, Height, ScreenBufferWidth, ref ScreenBuffer);
+		s.CopyToBuffer2D(X + 1, Y + 1, Width, Height, ScreenBufferWidth, ScreenBuffer);
 
 		if (ShouldDrawCursor())
 			s.AddColorsAt(X + CursorX + 1, Y + CursorY + 1, ConsoleColor.Black, ConsoleColor.White);
@@ -329,7 +327,7 @@ public class TextBox : Widget
 
 		if (ReachedHeightLimit())
 		{
-			int LineCount ;
+			int LineCount;
 
 			if (CursorY > Height - 1)
 			{

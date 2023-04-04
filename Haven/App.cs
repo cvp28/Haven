@@ -41,6 +41,8 @@ public class App
 		}
 	}
 
+	public uint ResizeTimeoutMilliseconds { get; set; } = 500;
+
 	private Dictionary<string, Layer> Layers;
 	private Layer[] ActiveLayers;
 
@@ -94,11 +96,57 @@ public class App
 		return _instance;
 	}
 
+	private bool DimensionsAreDifferent(Dimensions d, Dimensions d2)
+	{
+		bool WindowWidthChanged = d.WindowWidth != d2.WindowWidth;
+		bool WindowHeightChanged = d.WindowHeight != d2.WindowHeight;
+		bool BufferWidthChanged = d.BufferWidth != d2.BufferWidth;
+		bool BufferHeightChanged = d.BufferHeight != d2.BufferHeight;
+
+		return WindowWidthChanged || WindowHeightChanged || BufferWidthChanged || BufferHeightChanged;
+	}
+
+	private void ResizeRoutine()
+	{
+		Stopwatch ResizeTimer = new();
+
+		Dimensions LastDimensions = Dimensions.Current;
+
+		ResizeTimer.Restart();
+
+		while (true)
+		{
+			Console.CursorVisible = false;
+
+			var CurrentDimensions = Dimensions.Current;
+
+			if (DimensionsAreDifferent(CurrentDimensions, LastDimensions))
+				ResizeTimer.Restart();
+
+			LastDimensions = CurrentDimensions;
+
+			if (ResizeTimer.ElapsedMilliseconds >= 100)
+			{
+				ResizeTimer.Reset();
+				return;
+			}
+
+			Thread.Sleep(50);
+		}
+	}
+
+	private void UpdateDimensions(ref Dimensions d)
+	{
+		d.WindowWidth = Console.WindowWidth;
+		d.WindowHeight = Console.WindowHeight;
+		d.BufferWidth = Console.BufferWidth;
+		d.BufferHeight = Console.BufferHeight;
+	}
+
 	private void MainLoop()
 	{
 		State s = new();
 		List<Widget> CurrentWidgets = new(30);
-		Dimensions d = Dimensions.Current;
 
 		int LastMaxHeight = Console.LargestWindowHeight;
 		int LastMaxWidth = Console.LargestWindowWidth;
@@ -129,27 +177,28 @@ public class App
 			// Check for updated console dimensions and update current state accordingly
 			#region Update Dimensions
 
-			d.WindowWidth = Console.WindowWidth;
-			d.WindowHeight = Console.WindowHeight;
-			d.BufferWidth = Console.BufferWidth;
-			d.BufferHeight = Console.BufferHeight;
+			// Update 
+			UpdateDimensions(ref s.Dimensions);
 
-			bool WindowWidthChanged = d.WindowWidth != LastDimensions.WindowWidth;
-			bool WindowHeightChanged = d.WindowHeight != LastDimensions.WindowHeight;
-			bool BufferWidthChanged = d.BufferWidth != LastDimensions.BufferWidth;
-			bool BufferHeightChanged = d.BufferHeight != LastDimensions.BufferHeight;
-
-			// Dimensions were changed if any of those conditions were true
-			s.DimensionsChanged = WindowWidthChanged || WindowHeightChanged || BufferWidthChanged || BufferHeightChanged;
-
-			// Set current dimensions
-			s.Dimensions = d;
+			// Dimensions were changed if LastDimensions is different to current dimensions
+			s.DimensionsChanged = DimensionsAreDifferent(s.Dimensions, LastDimensions);
 
 			// Update last dimensions
-			LastDimensions = d;
+			LastDimensions = s.Dimensions;
+
+			if (s.Dimensions.WindowHeight == 0)
+				continue;
 
 			if (s.DimensionsChanged)
+			{
+				Console.Clear();
+				Console.CursorVisible = false;
+
+				// Blocks until dimensions are stable for at least a second
+				ResizeRoutine();
+
 				Screen.UpdateScreenDimensions();
+			}
 
 			#endregion
 
@@ -163,7 +212,7 @@ public class App
 
 				if (FocusedWidget is not null)
 				{
-					FocusedWidget.OnConsoleKey(cki);
+					FocusedWidget._OnConsoleKey(cki);
 					s.InputAlreadyHandled = true;
 				}
 				else
@@ -180,8 +229,8 @@ public class App
 
 			// Run update tasks
 			if (UpdateTasks.Count > 0)
-				foreach (var Task in UpdateTasks)
-					Task.Value(s);
+				foreach (var Task in UpdateTasks.Values)
+					Task(s);
 
 			// Clear the list of widgets to render in this frame
 			CurrentWidgets.Clear();
@@ -193,6 +242,7 @@ public class App
 					continue;
 
 				Layer.UpdateLayout(s.Dimensions);
+
 				CurrentWidgets.AddRange(Layer.Widgets);
 			}
 
@@ -360,6 +410,8 @@ public class App
 		return UpdateTasks.TryRemove(kvp);
 	}
 
+	public bool HasUpdateTask(string TaskID) => UpdateTasks.ContainsKey(TaskID);
+
 	#endregion
 
 	#region Layer Controls
@@ -378,6 +430,24 @@ public class App
 	/// <param name="ID">ID of the layer object to retrieve</param>
 	/// <returns>The layer with the specified ID or null if the ID does not correspond to any layer</returns>
 	public Layer GetLayer(string ID) => Layers.FirstOrDefault(kvp => kvp.Key == ID).Value;
+
+	public T GetLayer<T>() where T : Layer
+	{
+		Layer l = Layers.Values.FirstOrDefault(t => t.GetType() == typeof(T) );
+
+		if (l is null)
+			return null;
+
+		try
+		{
+			T temp = l as T;
+			return temp;
+		}
+		catch (Exception)
+		{
+			return null;
+		}
+	}
 
 	public T GetLayer<T>(string ID) where T : Layer
 	{
@@ -412,7 +482,7 @@ public class App
 	/// </summary>
 	/// <param name="ID">The ID of the layer that was added with AddLayer(string, Layer). If left as default, it will hide the layer and not show anything in its place.</param>
 	/// <param name="ZIndex">The Z Index to draw the layer in. Ranges from 0 to LayerCount - 1 inclusive. Layers with higher Z values are displayed over top of those with smaller ones.</param>
-	public void SetLayer(int ZIndex, string ID = "")
+	public void SetLayer(int ZIndex, string ID = "", params object[] Args)
 	{
 		bool EmptyID = ID == "";
 
@@ -436,7 +506,7 @@ public class App
 		ActiveLayers[ZIndex] = Layers[ID];
 		ActiveLayers[ZIndex].ZIndex = ZIndex;
 
-		Layers[ID]._OnShow(this);
+		Layers[ID]._OnShow(this, Args);
 	}
 
 	public bool IsLayerVisible(string ID)

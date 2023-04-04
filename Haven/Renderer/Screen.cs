@@ -225,7 +225,7 @@ public class Screen : Renderer
 		AddClearAt(CellIndex);
 	}
 
-	public override void CopyToBuffer2D(int X, int Y, int ViewWidth, int ViewHeight, int BufferWidth, ref CharacterInfo[] Buffer)
+	public override void CopyToBuffer2D(int X, int Y, int ViewWidth, int ViewHeight, int BufferWidth, Span<CharacterInfo> Buffer)
 	{
 		int OffX = 0;
 		int OffY = 0;

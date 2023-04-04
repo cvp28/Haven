@@ -21,7 +21,7 @@ public abstract class Renderer
 	/// <param name="ViewHeight">Height of the view that the CharacterInfo buffer will be projected in to</param>
 	/// <param name="BufferWidth">The full width of the 2D CharacterInfo buffer (likely larger than the ViewWidth)</param>
 	/// <param name="Buffer">The CharacterInfo buffer to copy from</param>
-	public abstract void CopyToBuffer2D(int X, int Y, int ViewWidth, int ViewHeight, int BufferWidth, ref CharacterInfo[] Buffer);
+	public abstract void CopyToBuffer2D(int X, int Y, int ViewWidth, int ViewHeight, int BufferWidth, Span<CharacterInfo> Buffer);
 
 	public abstract void WriteStringAt(int X, int Y, string Text);
 

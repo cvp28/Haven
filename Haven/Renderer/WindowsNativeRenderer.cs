@@ -42,7 +42,7 @@ public class WindowsNativeRenderer : Renderer
 		ScreenBuffer = new CharInfo[ScreenBufferSize];
 		ClearBuffer = new CharInfo[ScreenBufferSize];
 
-		for (int i = 0; i < ScreenBufferSize; i++)
+		for (int i = 0; i < ClearBuffer.Length; i++)
 		{
 			// White FG on Black BG by default
 			ClearBuffer[i].Attributes = (short) ConsoleColor.White | ((short) ConsoleColor.Black << 4);
@@ -55,6 +55,11 @@ public class WindowsNativeRenderer : Renderer
 	public override void Render(IEnumerable<Widget> Widgets)
 	{
 		Clear();
+
+		if (Console.WindowHeight == 0)
+			return;
+
+		Console.SetCursorPosition(0, 0);
 		Console.CursorVisible = false;
 
 		RenderTimer.Restart();
@@ -84,6 +89,21 @@ public class WindowsNativeRenderer : Renderer
 
 		WriteRegion.Right = (short) WindowWidthCells;
 		WriteRegion.Bottom = (short) WindowHeightCells;
+
+		// If our new window dimensions are somehow larger than the largest size that we initially expected,
+		if (TotalCells > ScreenBufferSize)
+		{
+			// Allocate a new screen buffer and clear buffer
+			Array.Resize(ref ScreenBuffer, TotalCells);
+			Array.Resize(ref ClearBuffer, TotalCells);
+
+			for (int i = 0; i < ClearBuffer.Length; i++)
+			{
+				// White FG on Black BG by default
+				ClearBuffer[i].Attributes = (short) ConsoleColor.White | ((short) ConsoleColor.Black << 4);
+				ClearBuffer[i].Char.UnicodeChar = ' ';
+			}
+		}
 
 		//Array.Resize(ref ClearBuffer, TotalCells);
 		//Array.Resize(ref ScreenBuffer, TotalCells);
@@ -115,7 +135,7 @@ public class WindowsNativeRenderer : Renderer
 		ScreenBuffer[CellIndex].Attributes = (short)CellAttribute;
 	}
 
-	public override void CopyToBuffer2D(int X, int Y, int ViewWidth, int ViewHeight, int BufferWidth, ref CharacterInfo[] Buffer)
+	public override void CopyToBuffer2D(int X, int Y, int ViewWidth, int ViewHeight, int BufferWidth, Span<CharacterInfo> Buffer)
 	{
 		int OffX = 0;
 		int OffY = 0;
@@ -124,7 +144,7 @@ public class WindowsNativeRenderer : Renderer
 		{
 			int CellIndex = IX(X + OffX, Y + OffY);
 
-			ModifyCharAt(CellIndex, Buffer[OffX + BufferWidth * OffY].Character);
+			ModifyCharAt(CellIndex, Buffer[OffX + BufferWidth * OffY].RenderingCharacter);
 			ScreenBuffer[CellIndex].Attributes = Buffer[OffX + BufferWidth * OffY].ColorsToShort();
 
 			//	ModifyForegroundAt(CellIndex, Buffer[i].Foreground);
