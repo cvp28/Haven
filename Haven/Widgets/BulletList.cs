@@ -8,7 +8,7 @@ public class BulletList : Widget
 
 	private List<BulletItem> Children;
 
-	public ConsoleColor ListBackground { get; set; }
+	public byte ListBackground { get; set; }
 	public int TabWidth { get; set; }
 
 	public BulletItem this[string ID]
@@ -16,7 +16,7 @@ public class BulletList : Widget
 		get => Children.FirstOrDefault(child => child.ID == ID);
 	}
 
-	public BulletList(int X, int Y, ConsoleColor ListBackground = ConsoleColor.Black, int TabWidth = 2)
+	public BulletList(int X, int Y, byte ListBackground = VTColor.Black, int TabWidth = 2)
 	{
 		this.X = X;
 		this.Y = Y;
@@ -27,18 +27,18 @@ public class BulletList : Widget
 		this.TabWidth = TabWidth;
 	}
 
-	public override void Draw(Renderer s)
+	public override void Draw()
 	{
 		int YOffset = 0;
 
 		for (int i = 0; i < Children.Count; i++)
-			YOffset += Children[i].Render(X, Y + i + YOffset, s, ListBackground, TabWidth);
+			YOffset += Children[i].Render(X, Y + i + YOffset, RenderContext, ListBackground, TabWidth);
 	}
 
 	public override void OnConsoleKey(ConsoleKeyInfo cki)
 	{ }
 
-	public bool AddChild(string ID, string Text, ConsoleColor BulletPointForeground = ConsoleColor.White, ConsoleColor BulletTextForeground = ConsoleColor.White)
+	public bool AddChild(string ID, string Text, byte BulletPointForeground = VTColor.White, byte BulletTextForeground = VTColor.White)
 	{
 		if (Children.Any(child => child.ID == ID))
 			return false;
@@ -53,8 +53,8 @@ public class BulletList : Widget
 public class BulletItem
 {
 	public string ID { get; set; }
-	public ConsoleColor BulletPointForeground = ConsoleColor.White;
-	public ConsoleColor BulletTextForeground = ConsoleColor.White;
+	public byte BulletPointForeground = VTColor.White;
+	public byte BulletTextForeground = VTColor.White;
 	public string Text { get; set; }
 
 	private List<BulletItem> Children;
@@ -64,7 +64,7 @@ public class BulletItem
 		get => Children.FirstOrDefault(child => child.ID == ID);
 	}
 
-	public BulletItem(string ID, string Text, ConsoleColor BulletPointForeground = ConsoleColor.White, ConsoleColor BulletTextForeground = ConsoleColor.White)
+	public BulletItem(string ID, string Text, byte BulletPointForeground = VTColor.White, byte BulletTextForeground = VTColor.White)
 	{
 		Children = new();
 
@@ -74,7 +74,7 @@ public class BulletItem
 		this.BulletTextForeground = BulletTextForeground;
 	}
 
-	public bool AddChild(string ID, string Text, ConsoleColor BulletPointForeground = ConsoleColor.White, ConsoleColor BulletTextForeground = ConsoleColor.White)
+	public bool AddChild(string ID, string Text, byte BulletPointForeground = VTColor.White, byte BulletTextForeground = VTColor.White)
 	{
 		if (Children.Any(child => child.ID == ID))
 			return false;
@@ -83,16 +83,26 @@ public class BulletItem
 		return true;
 	}
 
-	internal int Render(int X, int Y, Renderer s, ConsoleColor ListBackground, int TabWidth)
+	internal int Render(int X, int Y, VTRenderContext RenderContext, byte ListBackground, int TabWidth)
 	{
 		// First, render this item
-		s.WriteColorStringAt(X, Y, "■", BulletPointForeground, ListBackground);			// Write bullet point
-		s.WriteColorStringAt(X + 2, Y, Text, BulletTextForeground, ListBackground);     // Write bullet text
+
+		RenderContext.VTSetCursorPosition(X, Y);
+		RenderContext.VTSetBackgroundColor(ListBackground);
+
+		RenderContext.VTSetForegroundColor(BulletPointForeground);
+		RenderContext.VTDrawChar('■');
+		RenderContext.VTDrawChar(' ');
+		RenderContext.VTSetForegroundColor(BulletTextForeground);
+		RenderContext.VTDrawText(Text);
+
+		//	s.WriteColorStringAt(X, Y, "■", BulletPointForeground, ListBackground);			// Write bullet point
+		//	s.WriteColorStringAt(X + 2, Y, Text, BulletTextForeground, ListBackground);     // Write bullet text
 
 		int YOffset = 0;
 
 		for (int i = 0; i < Children.Count; i++)
-			YOffset += Children[i].Render(X + TabWidth, Y + i + 1 + YOffset, s, ListBackground, TabWidth);
+			YOffset += Children[i].Render(X + TabWidth, Y + i + 1 + YOffset, RenderContext, ListBackground, TabWidth);
 
 		// Return the number of children as a Y Offset so the next renderable can be offset by the appropriate amount
 		return Children.Count + YOffset;

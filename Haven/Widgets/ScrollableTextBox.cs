@@ -65,7 +65,7 @@ public class ScrollableTextBox : Widget
 
 	public int BufferHeight => Height + ScrollbackLines;
 
-	public ConsoleColor ScrollbarColor { get; set; }
+	public byte ScrollbarColor { get; set; }
 	public bool ScrollbarVisible { get; set; }
 
 	private int TotalCells => Width * (Height + ScrollbackLines);
@@ -88,9 +88,8 @@ public class ScrollableTextBox : Widget
 	private static CharacterInfo BlankCharacter = new()
 	{
 		Character = ' ',
-		Foreground = ConsoleColor.White,
-		Background = ConsoleColor.Black,
-		DoColors = true
+		Foreground = ConsoleColor.White.ToByte(),
+		Background = ConsoleColor.Black.ToByte()
 	};
 
 	private static readonly object ScreenBufferLock = new();
@@ -136,7 +135,7 @@ public class ScrollableTextBox : Widget
 
 		});
 
-		ScrollbarColor = ConsoleColor.DarkGray;
+		ScrollbarColor = ConsoleColor.DarkGray.ToByte();
 		ScrollbarVisible = true;
 		DoLogging = false;
 	}
@@ -212,7 +211,7 @@ public class ScrollableTextBox : Widget
 						CursorY = m.CursorY;
 						break;
 
-					case TextBoxModifyType.ModifyChar:
+					case TextBoxModifyType.WriteCharInPlace:
 						CursorX = m.CursorX;
 						CursorY = m.CursorY;
 						ModifyChar(m.Character, m.Foreground, m.Background);
@@ -231,41 +230,6 @@ public class ScrollableTextBox : Widget
 		}
 	}
 
-	// Deprecated because unused
-	//
-	//	private (int X, int Y) CursorPosFromIndex(int Index)
-	//	{
-	//		for (int Y = 0; Y < BufferHeight - 1; Y++)
-	//			for (int X = 0; X < Width - 1; X++)
-	//				if (IX(X, Y) == Index)
-	//					return (X, Y);
-	//	
-	//		// This is only here to make the compiler happy
-	//		// If this code is executed, something is WRONG
-	//		return (0, 0);
-	//	}
-	//	
-	//	// Set the CursorX and CursorY to correspond to a certain Screenbuffer index
-	//	private void SetCursorToIndex(int Index)
-	//	{
-	//		var Pos = CursorPosFromIndex(Index);
-	//	
-	//		OmitCursorHistoryEntries = true;
-	//	
-	//		CursorX = Pos.X;
-	//		CursorY = Pos.Y;
-	//	
-	//		OmitCursorHistoryEntries = false;
-	//	
-	//		ModifyHistory.Add(new()
-	//		{
-	//			Type = TextBoxModifyType.MoveCursor,
-	//	
-	//			CursorX = Pos.X,
-	//			CursorY = Pos.Y
-	//		});
-	//	}
-
 	public int IX(int X, int Y)
 	{
 		int Cell = Y * Width + X;
@@ -278,7 +242,7 @@ public class ScrollableTextBox : Widget
 
 	public (int X, int Y) GetCursorPosition() => (CursorX, CursorY);
 
-	public override void Draw(Renderer s)
+	public override void Draw()
 	{
 		if (Height <= 0 || Width <= 0)
 			return;
@@ -290,22 +254,39 @@ public class ScrollableTextBox : Widget
 		double ScrollbarPercentage = ViewY /  (double) ViewYMax;
 
 		// Draw window
-		s.DrawBox(X, Y, Width + 2, Height + 2);
+		RenderContext.VTDrawBox(X, Y, Width + 2, Height + 2);
+
 
 		lock (ScreenBufferLock)
 		{
+			var BufferToRender = CollectionsMarshal.AsSpan(ScreenBuffer).Slice(IndexStart, Length);
+
 			// Draw screen buffer
-			s.CopyToBuffer2D(X + 1, Y + 1, Width, Height, Width, CollectionsMarshal.AsSpan(ScreenBuffer).Slice(IndexStart, Length));
+			RenderContext.VTDrawCharacterInfoBuffer(X + 1, Y + 1, Width, Height, Width, in BufferToRender);
+
+			// Draw scrollbar
+			if (ScrollbarVisible)
+			{
+				RenderContext.VTSetCursorPosition(X + Width + 1, Y + 1 + (int)Remap(ScrollbarPercentage, 0.0, 1.0, 0.0, (double)Height - 1));
+
+				RenderContext.VTEnterColorContext(ScrollbarColor, ConsoleColor.Black.ToByte(), delegate ()
+				{
+					RenderContext.VTDrawChar(BoxChars.Vertical);
+				});
+			}
+
+			// Draw cursor
+			if (IsCursorInView() && CursorVisible && DoCursor)
+			{
+				RenderContext.VTSetCursorPosition(X + 1 + CursorX, Y + 1 + (CursorY - ViewY));
+				RenderContext.VTInvert();
+				RenderContext.VTDrawChar(CellUnderCursor.RenderingCharacter);
+				RenderContext.VTRevert();
+			}
 		}
-
-		// Draw scrollbar
-		if (ScrollbarVisible)
-			s.WriteColorStringAt(X + Width + 1, Y + 1 + (int) Remap(ScrollbarPercentage, 0.0, 1.0, 0.0, (double) Height - 1), $"{BoxChars.Vertical}", ScrollbarColor, ConsoleColor.Black);
-
-		// Draw cursor
-		if (IsCursorInView() && CursorVisible && DoCursor)
-			s.AddColorsAt(X + 1 + CursorX, Y + 1 + (CursorY - ViewY), ConsoleColor.Black, ConsoleColor.White);
 	}
+
+	public CharacterInfo CellUnderCursor => ScreenBuffer[CursorX + Width * CursorY];
 
 	private double Remap(double value, double from1, double to1, double from2, double to2) => (value - from1) / (to1 - from1) * (to2 - from2) + from2;
 
@@ -314,8 +295,6 @@ public class ScrollableTextBox : Widget
 	public bool IsCursorInView() => (CursorY >= ViewY) && (CursorY < ViewY + Height);
 
 	private bool ReachedBufferHeightLimit => CursorY == Height + ScrollbackLines - 1;
-
-	private bool ReachedWindowHeightLimit => CursorY == Height - 1;
 	private bool ReachedWindowWidthLimit => CursorX == Width - 1;
 
 	private void ScrollBuffer()
@@ -432,29 +411,45 @@ public class ScrollableTextBox : Widget
 
 	public void WriteLine() => Write('\n');
 
-	public void WriteLine(string Text, ConsoleColor Foreground = ConsoleColor.White, ConsoleColor Background = ConsoleColor.Black)
+	public void WriteLine(string Text, byte Foreground = 15, byte Background = 0)
 	{
 		Write(Text, Foreground, Background);
 		Write('\n');
 	}
 
-	public void WriteLine(char Character, ConsoleColor Foreground = ConsoleColor.White, ConsoleColor Background = ConsoleColor.Black)
+	public void WriteLine(char Character, byte Foreground = 15, byte Background = 0)
 	{
 		Write(Character, Foreground, Background);
 		Write('\n');
 	}
 
-	public void Write(string Text, ConsoleColor Foreground = ConsoleColor.White, ConsoleColor Background = ConsoleColor.Black)
+	public void Write(string Text, byte Foreground = 15, byte Background = 0)
 	{
 		for (int i = 0; i < Text.Length; i++)
 			Write(Text[i], Foreground, Background);
 	}
 
 	// Base-level writing function that actually writes the character to the buffer and does newline/carriage-return logic
-	public void Write(char Character, ConsoleColor Foreground = ConsoleColor.White, ConsoleColor Background = ConsoleColor.Black, bool OmitHistoryEntry = false)
+	public void Write(char Character, byte Foreground = 15, byte Background = 0, bool OmitHistoryEntry = false)
 	{
-		if (DoLogging)
+		if (DoLogging && !OmitHistoryEntry)
 			LogStreamWriter.Write(Character);
+
+		if (!OmitHistoryEntry)
+		{
+			ModifyHistory.Add(new()
+			{
+				Type = TextBoxModifyType.Write,
+
+				CursorX = CursorX,
+				CursorY = CursorY,
+
+				Character = Character,
+
+				Foreground = Foreground,
+				Background = Background
+			});
+		}
 
 		OmitCursorHistoryEntries = true;
 
@@ -472,23 +467,16 @@ public class ScrollableTextBox : Widget
 		if (OmitHistoryEntry)
 			return;
 
-		ModifyHistory.Add(new()
-		{
-			Type = TextBoxModifyType.Write,
-
-			Character = Character,
-			Foreground = Foreground,
-			Background = Background
-		});
+		
 	}
 
-	public void WriteCharInPlace(char Character, ConsoleColor Foreground = ConsoleColor.White, ConsoleColor Background = ConsoleColor.Black)
+	public void WriteCharInPlace(char Character, byte Foreground = 15, byte Background = 0)
 	{
 		ModifyChar(Character, Foreground, Background);
 
 		ModifyHistory.Add(new()
 		{
-			Type = TextBoxModifyType.ModifyChar,
+			Type = TextBoxModifyType.WriteCharInPlace,
 
 			CursorX = CursorX,
 			CursorY = CursorY,
@@ -500,7 +488,7 @@ public class ScrollableTextBox : Widget
 		});
 	}
 
-	private void ModifyChar(char Character, ConsoleColor Foreground = ConsoleColor.White, ConsoleColor Background = ConsoleColor.Black)
+	private void ModifyChar(char Character, byte Foreground = 15, byte Background = 0)
 	{
 		lock (ScreenBufferLock)
 		{

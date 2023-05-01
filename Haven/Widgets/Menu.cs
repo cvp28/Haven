@@ -53,7 +53,7 @@ public class Menu : Widget
 
 	private bool IsValidIndex(int Index) => Index >= 0 && Index < Options.Count;
 
-	public void AddOption(string Option, Action Action, ConsoleColor Foreground = ConsoleColor.White, ConsoleColor Background = ConsoleColor.Black)
+	public void AddOption(string Option, Action Action, byte Foreground = 15, byte Background = 0)
 	{
 		if (Option is null || Action is null)
 			return;
@@ -92,22 +92,19 @@ public class Menu : Widget
 			Y = 0;
 	}
 
-	public override void Draw(Renderer s)
+	public override void Draw()
 	{
 		if (Options.Count == 0)
 			return;
 
 		switch (TextAlignment)
 		{
-			case Alignment.Left:
-				DrawLeftAligned();
-				break;
-
 			case Alignment.Center:
 				DrawCenterAligned();
 				break;
 
-			case Alignment.Right:
+			default:
+			case Alignment.Left:
 				DrawLeftAligned();
 				break;
 		}
@@ -117,9 +114,15 @@ public class Menu : Widget
 			for (int i = 0; i < Options.Count; i++) 
 			{
 				if (i == SelectedOption)
-					DrawStyledOption(X, Y + i, s, Options[i]);
+					DrawStyledOption(X, Y + i, Options[i]);
 				else
-					s.WriteColorStringAt(X, Y + i, Options[i].Text, Options[i].TextForeground, Options[i].TextBackground);
+				{
+					RenderContext.VTSetCursorPosition(X, Y + i);
+					RenderContext.VTEnterColorContext(Options[i].TextForeground, Options[i].TextBackground, delegate ()
+					{
+						RenderContext.VTDrawText(Options[i].Text);
+					});
+				}
 			}
 		}
 
@@ -132,30 +135,51 @@ public class Menu : Widget
 				int CurrentX = X + (LongestOptionLength / 2) - (Options[i].Text.Length / 2);
 
 				if (i == SelectedOption)
-					DrawStyledOption(X, Y + i, s, Options[i]);
+					DrawStyledOption(CurrentX, Y + i, Options[i]);
 				else
-					s.WriteColorStringAt(X, Y + i, Options[i].Text, Options[i].TextForeground, Options[i].TextBackground);
+				{
+					RenderContext.VTSetCursorPosition(CurrentX, Y + i);
+					RenderContext.VTEnterColorContext(Options[i].TextForeground, Options[i].TextBackground, delegate ()
+					{
+						RenderContext.VTDrawText(Options[i].Text);
+					});
+				}
 			}
 		}
 	}
 
-	private void DrawStyledOption(int X, int Y, Renderer s, MenuOption Option)
+	private void DrawStyledOption(int X, int Y, MenuOption Option)
 	{
 		if (!Focused && !AlwaysStyle)
 		{
-			s.WriteColorStringAt(X, Y, Option.Text, Option.TextForeground, Option.TextBackground);
+			RenderContext.VTSetCursorPosition(X, Y);
+			RenderContext.VTEnterColorContext(Option.TextForeground, Option.TextBackground, delegate ()
+			{
+				RenderContext.VTDrawText(Option.Text);
+			});
 			return;
 		}
 
 		switch (SelectedOptionStyle)
 		{
 			case MenuStyle.Arrow:
-				s.WriteColorStringAt(X, Y, $"{Option.Text} <", Option.TextForeground, Option.TextBackground);
-				break;
+				{
+					RenderContext.VTSetCursorPosition(X, Y);
+					RenderContext.VTEnterColorContext(Option.TextForeground, Option.TextBackground, delegate ()
+					{
+						RenderContext.VTDrawText(Option.Text);
+					});
+					break;
+				}
 
 			case MenuStyle.Highlighted:
-				s.WriteColorStringAt(X, Y, Option.Text, Option.TextBackground, Option.TextForeground);
-				break;
+				{
+					RenderContext.VTSetCursorPosition(X, Y);
+					RenderContext.VTInvert();
+					RenderContext.VTDrawText(Option.Text);
+					RenderContext.VTRevert();
+					break;
+				}
 		}
 	}
 

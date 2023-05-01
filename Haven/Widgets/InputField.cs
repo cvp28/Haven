@@ -16,24 +16,27 @@ public class InputField : Widget
 	public int X { get; set; }
 	public int Y { get; set; }
 
-	public ConsoleColor CursorForeground;
-	public ConsoleColor CursorBackground;
+	public byte CursorForeground;
+	public byte CursorBackground;
 
 	public bool DrawCursor = true;
 
 	public string Prompt { get; set; }
 	private StringBuilder Buffer;
-	private List<string> History;
+
+	public int CurrentHistoryIndex { get; private set; } = 0;
+	public List<string> History = new();
 
 	public int BufferLength => Buffer.Length;
 
 	public int CursorX => (X + Prompt.Length + CurrentBufferIndex) % Dimensions.Current.WindowWidth;
 	public int CursorY => ((X + Prompt.Length + CurrentBufferIndex) / Dimensions.Current.WindowWidth) + 1;
 
-	public int CurrentBufferIndex = 0;
+	private int CurrentBufferIndex = 0;
 	public int MaxBufferIndex => Buffer.Length - 1;
 
 	public bool HighlightingEnabled = false;
+	public bool HistoryEnabled = true;
 
 	public Action<string> OnInput { get; set; }
 
@@ -48,22 +51,10 @@ public class InputField : Widget
 
 	public InputFilter Filter { get; set; }
 
-	public InputField(int X, int Y, string Prompt)
-	{
-		this.X = X;
-		this.Y = Y;
-		this.Prompt = Prompt;
-		CursorForeground = ConsoleColor.Black;
-		CursorBackground = ConsoleColor.White;
+	public InputField(int X, int Y, string Prompt) : this(X, Y, Prompt, ConsoleColor.Black.ToByte(), ConsoleColor.White.ToByte())
+	{ }
 
-		Filter = InputFilter.None;
-
-		Buffer = new();
-		History = new();
-		OnInput = null;
-	}
-
-	public InputField(int X, int Y, string Prompt, ConsoleColor CursorForeground, ConsoleColor CursorBackground)
+	public InputField(int X, int Y, string Prompt, byte CursorForeground, byte CursorBackground)
 	{
 		this.X = X;
 		this.Y = Y;
@@ -78,19 +69,57 @@ public class InputField : Widget
 		OnInput = null;
 	}
 
-	public override void Draw(Renderer s)
+	public override void Draw()
 	{
+		// Set cursor position
+		RenderContext.VTSetCursorPosition(X, Y);
+
 		// Draw buffer
-		s.WriteStringAt(X, Y, $"{Prompt}{Buffer}");
+		RenderContext.VTDrawText($"{Prompt}{Buffer}");
 
 		// Do highlighting
 		if (HighlightingEnabled)
 			foreach (var Token in CurrentTokens)
-				s.WriteColorStringAt(X + Prompt.Length + Token.StartIndex + (Token.Quoted ? 1 : 0), Y, Token.Content, Token.HighlightForeground, Token.HighlightBackground);
+			{
+				bool ForegroundDiff = Token.HighlightForeground != VTRenderContext.CurrentForegroundColor;
+				bool BackgroundDiff = Token.HighlightBackground != VTRenderContext.CurrentBackgroundColor;
+
+				// Only do token highlighting if the colors are different
+				if (ForegroundDiff || BackgroundDiff)
+				{
+					RenderContext.VTEnterColorContext(Token.HighlightForeground, Token.HighlightBackground, delegate ()
+					{
+						RenderContext.VTSetCursorPosition(X + Prompt.Length + Token.StartIndex + (Token.Quoted ? 1 : 0), Y);
+						RenderContext.VTDrawText(Token.Content);
+					});
+				}
+				
+			}
 
 		// Draw cursor
 		if (DrawCursor && Focused)
-			s.AddColorsAt(X + Prompt.Length + CurrentBufferIndex, Y, CursorForeground, CursorBackground);
+		{
+			RenderContext.VTSetCursorPosition(X + Prompt.Length + CurrentBufferIndex, Y);
+
+			RenderContext.VTInvert();
+
+			if (Buffer.Length > 0 && CurrentBufferIndex != Buffer.Length)
+				RenderContext.VTDrawText($"{Buffer[CurrentBufferIndex]}");
+			else 
+				RenderContext.VTDrawText(" ");
+
+			RenderContext.VTRevert();
+		}
+
+			//	RenderContext.VTEnterColorContext(1, 196, delegate ()
+			//	{
+			//		RenderContext.VTSetCursorPosition(X + Prompt.Length + CurrentBufferIndex, Y);
+			//	
+			//		if (CurrentBufferIndex == Buffer.Length)
+			//			RenderContext.VTDrawText(" ");
+			//		else
+			//			RenderContext.VTDrawText($"{Buffer[CurrentBufferIndex]}");
+			//	});
 	}
 
 	public void CenterTo(Dimensions d, int XOff = 0, int YOff = 0)
@@ -148,6 +177,24 @@ public class InputField : Widget
 		CursorLeft();
 	}
 
+	private bool InHistoryMode = false;
+	private string BufferBackup;
+
+	private int IncrementInRange(int Value, int LowerBound, int UpperBound)
+	{
+		if (Value < UpperBound)
+			return Value + 1;
+		else
+			return LowerBound;
+	}
+
+	private int DecrementInRange(int Value, int LowerBound, int UpperBound)
+	{
+		if (Value > LowerBound)
+			return Value - 1;
+		else
+			return UpperBound;
+	}
 
 	public override void OnConsoleKey(ConsoleKeyInfo cki)
 	{
@@ -156,11 +203,98 @@ public class InputField : Widget
 		if (cki.Key != ConsoleKey.Tab)
 			InAutoCompleteMode = false;
 
+		if (cki.Key != ConsoleKey.UpArrow && cki.Key != ConsoleKey.DownArrow)
+		{
+			InHistoryMode = false;
+			CurrentHistoryIndex = 0;
+		}
+
 		// Handle key
 		switch (cki.Key)
 		{
 			case ConsoleKey.Enter:
 				RaiseInputEvent = true;
+				break;
+
+			case ConsoleKey.UpArrow:
+				if (History.Count == 0)
+					break;
+
+				if (!InHistoryMode)
+				{
+					BufferBackup = Buffer.ToString();
+					InHistoryMode = true;
+
+					if (History.Count > 0)
+						CurrentHistoryIndex = History.Count - 1;
+				}
+				else
+				{
+					if (History.Count > 0)
+						CurrentHistoryIndex = DecrementInRange(CurrentHistoryIndex, -1, History.Count - 1);
+					else
+						break;
+				}
+
+				if (CurrentHistoryIndex == -1)
+				{
+					Buffer.Clear();
+					Buffer.Insert(0, BufferBackup);
+
+					if (Buffer.Length == 0)
+						CurrentBufferIndex = 0;
+					else
+						CurrentBufferIndex = Buffer.Length;
+
+					InHistoryMode = false;
+				}
+				else
+				{
+					Buffer.Clear();
+					Buffer.Insert(0, History[CurrentHistoryIndex]);
+					CurrentBufferIndex = Buffer.Length;
+				}
+
+				break;
+
+			case ConsoleKey.DownArrow:
+				if (History.Count == 0)
+					break;
+
+				if (!InHistoryMode)
+				{
+					BufferBackup = Buffer.ToString();
+					InHistoryMode = true;
+
+					CurrentHistoryIndex = 0;
+				}
+				else
+				{
+					if (History.Count > 0)
+						CurrentHistoryIndex = IncrementInRange(CurrentHistoryIndex, -1, History.Count - 1);
+					else
+						break;
+				}
+
+				if (CurrentHistoryIndex == -1)
+				{
+					Buffer.Clear();
+					Buffer.Insert(0, BufferBackup);
+
+					if (Buffer.Length == 0)
+						CurrentBufferIndex = 0;
+					else
+						CurrentBufferIndex = Buffer.Length;
+
+					InHistoryMode = false;
+				}
+				else
+				{
+					Buffer.Clear();
+					Buffer.Insert(0, History[CurrentHistoryIndex]);
+					CurrentBufferIndex = Buffer.Length;
+				}
+
 				break;
 
 			case ConsoleKey.LeftArrow:
@@ -378,7 +512,9 @@ public class InputField : Widget
 			string Result = Buffer.ToString();
 
 			OnInput?.Invoke(Result);
-			History.Append(Result);
+
+			if (Result.Length > 0)
+				History.Add(Result);
 
 			Buffer.Clear();
 			CurrentBufferIndex = 0;
@@ -419,13 +555,14 @@ public class InputField : Widget
 			OnHighlight(CurrentTokens);
 	}
 
+	private Regex TokenizerRegex = new("\"(.*?)\"|([\\S]*)", RegexOptions.Compiled);
 	private List<Token> TempTokens = new();
 
 	public Token[] Tokenize(string Buffer)
 	{
 		TempTokens.Clear();
 
-		foreach (Match m in Regex.Matches(Buffer, "\"(.*?)\"|([\\S]*)", RegexOptions.Compiled))
+		foreach (Match m in TokenizerRegex.Matches(Buffer))
 		{
 			if (m.Value.Length == 0)
 				continue;
@@ -436,7 +573,9 @@ public class InputField : Widget
 				{
 					Content = m.Value.Trim('\"'),
 					StartIndex = m.Index,
-					Quoted = true
+					Quoted = true,
+					HighlightForeground = ConsoleColor.White.ToByte(),
+					HighlightBackground = ConsoleColor.Black.ToByte()
 				});
 			}
 			else
@@ -444,7 +583,10 @@ public class InputField : Widget
 				TempTokens.Add(new Token()
 				{
 					Content = m.Value,
-					StartIndex = m.Index
+					StartIndex = m.Index,
+					Quoted = false,
+					HighlightForeground = ConsoleColor.White.ToByte(),
+					HighlightBackground = ConsoleColor.Black.ToByte()
 				});
 			}
 		}

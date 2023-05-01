@@ -10,7 +10,7 @@ public class Token
 	public bool Selected = false;
 	public bool Quoted = false;
 
-	public ConsoleColor HighlightForeground = ConsoleColor.White;
-	public ConsoleColor HighlightBackground = ConsoleColor.Black;
+	public byte HighlightForeground;
+	public byte HighlightBackground;
 
 }

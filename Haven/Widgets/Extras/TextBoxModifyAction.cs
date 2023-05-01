@@ -13,13 +13,13 @@ internal struct TextBoxModifyAction
 	// Write Type
 	public char Character;
 
-	public ConsoleColor Foreground;
-	public ConsoleColor Background;
+	public byte Foreground;
+	public byte Background;
 }
 
 internal enum TextBoxModifyType
 {
 	MoveCursor,
-	ModifyChar,
+	WriteCharInPlace,
 	Write
 }

@@ -1,28 +1,17 @@
-﻿using System.Diagnostics;
-using System.Collections.Concurrent;
+﻿using System.Text;
 using System.Timers;
-using System.Text;
-using System.Runtime.InteropServices;
+using System.Diagnostics;
+using System.Collections.Concurrent;
 
 namespace Haven;
 
-public class App
+public unsafe class App
 {
 	public bool AppActive { get; private set; }
-	private bool AppPaused;
-	private bool RequestPause;
+	public uint ResizeTimeoutMilliseconds { get; set; } = 500;
 
-	public Renderer Screen { get; private set; }
-	private Stopwatch FrameTimer;
-	private System.Timers.Timer FPSIntervalTimer;
-	
-	private int CurrentFPS = 0;
-	private long LastFPS = 0;
-	private long LastFrameTime = 0;
+	public static App Instance => _instance;
 
-	private Dimensions LastDimensions;
-
-	private Widget _focused;
 	public Widget FocusedWidget
 	{
 		get => _focused;
@@ -41,24 +30,67 @@ public class App
 		}
 	}
 
-	public uint ResizeTimeoutMilliseconds { get; set; } = 500;
+	#region Private Members
+	private bool AppPaused;
+	private bool RequestPause;
 
+	private Stopwatch FrameTimer;
+	private System.Timers.Timer FPSIntervalTimer;
+
+	private Widget _focused;
+	
+	private int CurrentFPS = 0;
+	private long LastFPS = 0;
+	private long LastFrameTime = 0;
+
+	private Dimensions LastDimensions;
+
+	private ConcurrentDictionary<string, Action<State>> UpdateTasks;
 	private Dictionary<string, Layer> Layers;
 	private Layer[] ActiveLayers;
 
-	public int TopLayer => ActiveLayers.Length - 1;
-
-	private ConcurrentDictionary<string, Action<State>> UpdateTasks;
-
 	private static App _instance;
 
-	public static App Instance => _instance;
+	private Stream Out;
+	private Action<byte[], int> PlatformWriteStdout;
+	private StringBuilder FrameBuilder;
 
-	private App(Renderer Renderer, int LayerCount)
+	private bool RenderBufferDumpPending;
+	private int RenderBufferDumpQuantity;
+	#endregion
+
+	private App(int LayerCount)
 	{
+		// Create objects
+		Layers = new();
+		ActiveLayers = new Layer[LayerCount];
+		UpdateTasks = new();
 		FrameTimer = new();
+		FrameBuilder = new();
 		FPSIntervalTimer = new();
+		AppActive = false;
+		AppPaused = false;
+		RequestPause = false;
+		RenderBufferDumpPending = false;
+		RenderBufferDumpQuantity = 0;
+		LastDimensions = Dimensions.Current;
+		if (OperatingSystem.IsWindows())
+		{
+			IntPtr FileHandle = Kernel32.GetStdHandle(-11);
 
+			PlatformWriteStdout = delegate (byte[] buf, int len)
+			{
+				Kernel32.WriteFile(FileHandle, buf, (uint) len, out _, nint.Zero);
+			};
+		}
+		else
+			PlatformWriteStdout = delegate (byte[] buf, int len)
+			{
+				fixed (byte* ptr = buf)
+					Libc.write(1, ptr, (uint)len);
+			};
+
+		// Setup timer
 		FPSIntervalTimer.Interval = 1000;
 		FPSIntervalTimer.Elapsed += delegate (object sender, ElapsedEventArgs e)
 		{
@@ -66,32 +98,32 @@ public class App
 			CurrentFPS = 0;
 		};
 
-		LastDimensions = Dimensions.Current;
+		// Set to UTF-8 encoding
+		Console.OutputEncoding = Encoding.UTF8;
 
-		Screen = Renderer;
+		// If we are running on Windows, enable VT processing manually using P/Invoke
+		if (OperatingSystem.IsWindows())
+		{
+			IntPtr hOut = Kernel32.GetStdHandle(-11);
 
-		Layers = new();
-		ActiveLayers = new Layer[LayerCount];
-		UpdateTasks = new();
-
-		AppActive = false;
-		AppPaused = false;
-		RequestPause = false;
+			Kernel32.GetConsoleMode(hOut, out uint mode);
+			mode |= 4;
+			Kernel32.SetConsoleMode(hOut, mode);
+		}
 	}
 
 	/// <summary>
 	/// Creates a Haven application with the specified renderer and layer count
 	/// </summary>
-	/// <typeparam name="T">The renderer type to use for drawing the screen [WindowsNativeRenderer, ConWriteRenderer, etc.]</typeparam>
 	/// <param name="LayerCount">The amount of layers that can be drawn in one frame</param>
-	/// <returns>A singleton instance of a Haven app</returns>
-	public static App Create<T>(int LayerCount = 3) where T : Renderer
+	/// <returns>A singleton instance of the Haven app</returns>
+	public static App Create(int LayerCount = 3)
 	{
 		if (LayerCount < 1)
 			throw new ArgumentOutOfRangeException(nameof(LayerCount));
 
 		if (_instance is null)
-			_instance = new(Activator.CreateInstance<T>(), LayerCount);
+			_instance = new(LayerCount);
 
 		return _instance;
 	}
@@ -131,7 +163,7 @@ public class App
 				return;
 			}
 
-			Thread.Sleep(50);
+			Thread.Sleep(10);
 		}
 	}
 
@@ -142,6 +174,8 @@ public class App
 		d.BufferWidth = Console.BufferWidth;
 		d.BufferHeight = Console.BufferHeight;
 	}
+
+	private StringBuilder LastFrameBuilder = new();
 
 	private void MainLoop()
 	{
@@ -169,11 +203,6 @@ public class App
 			s.FPS = LastFPS;
 			s.LastFrameTime = LastFrameTime;
 
-			s.WidgetRenderTimeMs = Screen.WidgetRenderTimeMs;
-			s.StdoutWriteTimeMs = Screen.StdoutWriteTimeMs;
-			s.DiagTime1Ms = Screen.DiagTime1Ms;
-			s.DiagTime2Ms = Screen.DiagTime2Ms;
-
 			// Check for updated console dimensions and update current state accordingly
 			#region Update Dimensions
 
@@ -196,8 +225,6 @@ public class App
 
 				// Blocks until dimensions are stable for at least a second
 				ResizeRoutine();
-
-				Screen.UpdateScreenDimensions();
 			}
 
 			#endregion
@@ -235,22 +262,92 @@ public class App
 			// Clear the list of widgets to render in this frame
 			CurrentWidgets.Clear();
 
-			// Update each layer's layout and add its widgets to the render list
 			foreach (var Layer in ActiveLayers)
 			{
 				if (Layer is null)
 					continue;
 
+				// Update the current layout
 				Layer.UpdateLayout(s.Dimensions);
 
-				CurrentWidgets.AddRange(Layer.Widgets);
+				// Add only the currently visible widgets to the render list
+				CurrentWidgets.AddRange(Layer.Widgets.Where(w => w.Visible));
 			}
 
-			// Render all of the visible widgets in this frame
-			Screen.Render(CurrentWidgets);
+			// Clear frame builder
+			FrameBuilder.Clear();
 
+			// Set cursor to top left
+			FrameBuilder.Append("\x1b[;H");
+
+			// Clear screen
+			FrameBuilder.Append("\x1b[J");
+
+			// Set foreground and background
+			FrameBuilder.Append("\x1b[97m\x1b[40m");
+			VTRenderContext.CurrentForegroundColor = 15;
+			VTRenderContext.CurrentBackgroundColor = 0;
+
+			// Draw each widget and append its render context buffer to the final frame
+			foreach (var w in CurrentWidgets)
+			{
+				w.Draw();
+				FrameBuilder.Append(w.RenderContext.GetBuffer());
+			}
+
+			// Local variables for the final frame data
+			string FinalFrame = FrameBuilder.ToString();
+			byte[] FinalFrameBytes = Encoding.UTF8.GetBytes(FinalFrame);
+
+			// Handle Render Buffer Dumps
+			if (RenderBufferDumpPending)
+			{
+				if (RenderBufferDumpQuantity <= 0)
+				{
+					RenderBufferDumpPending = false;
+				}
+				else
+				{
+					using (var sw = File.AppendText(@".\HavenRenderBufferDump.txt"))
+					{
+						sw.Write("--- Begin frame ");
+						sw.Write(RenderBufferDumpQuantity);
+						sw.Write(" (");
+						sw.Write(FinalFrameBytes.Length);
+						sw.WriteLine(" bytes)");
+
+
+						sw.WriteLine(FinalFrame.ToString());
+
+						sw.Write("--- End frame ");
+						sw.WriteLine(RenderBufferDumpQuantity);
+					}
+
+					RenderBufferDumpQuantity--;
+				}
+			}
+
+			string ThisFrame = FrameBuilder.ToString();
+			string LastFrame = LastFrameBuilder.ToString();
+
+			// If this frame is different than the last frame
+			if (ThisFrame != LastFrame)
+			{
+				// Write final frame using platform-specific implementation
+				PlatformWriteStdout(FinalFrameBytes, FinalFrameBytes.Length);
+			}
+
+			// Clear each widget's render context buffer after rendering
+			CurrentWidgets.ForEach(w => w.RenderContext.Clear());
+
+			// Update LastFrameTime
 			LastFrameTime = (int) FrameTimer.ElapsedMilliseconds;
 
+			// Store this frame so that it can be checked for equality on the next frame
+			LastFrameBuilder.Clear();
+			LastFrameBuilder.Append(FrameBuilder.ToString());
+
+			// Increment FPS counter
 			CurrentFPS++;
 		}
 
@@ -268,6 +365,16 @@ public class App
 		Console.ResetColor();
 		Console.Clear();
 	}
+
+	#region Debug
+
+	public void DumpRenderBuffers(int Quantity)
+	{
+		RenderBufferDumpPending = true;
+		RenderBufferDumpQuantity = Quantity;
+	}
+
+	#endregion
 
 	#region Modal Stuff
 

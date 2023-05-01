@@ -1,35 +1,24 @@
 ﻿
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace Haven;
 
 public class Label : Widget
 {
 	public int X { get; set; }
 	public int Y { get; set; }
-
 	public string Text { get; set; }
 
-	public ConsoleColor ForegroundColor;
-	public ConsoleColor BackgroundColor;
+	public byte ForegroundColor;
+	public byte BackgroundColor;
 
-	public Label(int X, int Y) : base()
-	{
-		this.X = X;
-		this.Y = Y;
-		Text = string.Empty;
-		ForegroundColor = ConsoleColor.White;
-		BackgroundColor = ConsoleColor.Black;
-	}
+	public Label(int X, int Y) : this(X, Y, string.Empty)
+	{ }
 
-	public Label(int X, int Y, string Text) : base()
-	{
-		this.X = X;
-		this.Y = Y;
-		this.Text = Text;
-		ForegroundColor = ConsoleColor.White;
-		BackgroundColor = ConsoleColor.Black;
-	}
+	public Label(int X, int Y, string Text) : this(X, Y, Text, VTColor.White, VTColor.Black)
+	{ }
 
-	public Label(int X, int Y, string Text, ConsoleColor Foreground, ConsoleColor Background) : base()
+	public Label(int X, int Y, string Text, byte Foreground, byte Background) : base()
 	{
 		this.X = X;
 		this.Y = Y;
@@ -56,15 +45,20 @@ public class Label : Widget
 			Y = 0;
 	}
 
-	public override void Draw(Renderer s)
+	public override void Draw()
 	{
 		if (Text.Length == 0) { return; }
-		
-		s.WriteColorStringAt(X, Y, Text, ForegroundColor, BackgroundColor);
+
+		// Set cursor position then color data
+		RenderContext.VTSetCursorPosition(X, Y);
+
+		// The color context will determine automatically if the colors need to be reset after the code finishes
+		RenderContext.VTEnterColorContext(ForegroundColor, BackgroundColor, delegate ()
+		{
+			RenderContext.VTDrawText(Text);
+		});
 	}
 
 	public override void OnConsoleKey(ConsoleKeyInfo cki)
-	{
-		
-	}
+	{ }
 }
