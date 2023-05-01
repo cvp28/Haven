@@ -64,6 +64,8 @@ public class ExampleLayer : Layer
 
     public ExampleLayer() : base()
     {
+        LblHeading = new(2, 1, "Welcome to my app!");
+        
         MnuMain = new(2, 3)
         {
             SelectedOptionStyle = MenuStyle.Highlighted
@@ -73,10 +75,8 @@ public class ExampleLayer : Layer
         MnuMain.AddOption("Option2", delegate() { // your code here });
         MnuMain.AddOption("Exit", App.Instance.SignalExit);
         
-        LblHeading = new(2, 1, "Welcome to my app!");
-        
         base.AddWidgetsInternal();  // <- This has to be called if you plan on adding widgets using the [Widget] attribute
-                                    // Make sure you call it AFTER instantiating your widgets!
+                                    //    Make sure you call it AFTER instantiating your widgets!
     }
 
     public override void OnShow(App a)
@@ -124,7 +124,7 @@ That will give you a basic page with a label and menu. You can use App.Instance.
 ## Rendering
 Haven entirely uses VT escape sequences for rendering and supports 8-bit color through the VTColor static class (not an enum to make things easier).  
   
-Basically, each widget is assigned its own VTRenderContext that it can draw to using its own drawing API. The VTRenderContext, essentially, is a simple StringBuilder that each drawing API method appends to whenever the uses wants to set the foreground color, invert colors, draw text, etc.  
+Basically, each widget is assigned its own VTRenderContext that it can draw to using its own drawing API. The VTRenderContext, essentially, is a simple StringBuilder that each drawing API method appends to whenever the user wants to set the foreground color, invert colors, draw text, etc.  
   
 At render time, the Haven engine will instruct each widget to draw itself by calling that widget's Draw() method. Then it will grab the populated VTRenderContext buffer for that widget and append it to its own render buffer. When all is said and done, Haven's own render buffer will contain the virtual terminal instructions required to draw every widget to the screen. Haven, then converts that buffer to a sequence of UTF-8 bytes and writes it to the screen using WriteFile() on Windows and the libc write() syscall on Unix.  
 
