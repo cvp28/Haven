@@ -1,10 +1,10 @@
 ﻿
 
-namespace Haven;
+namespace HavenUI;
 
 public class MenuOption
 {
-	public string ID { get; set; }
+	public int Index { get; internal set; }
 	public string Text { get; set; }
 
 	public byte TextForeground { get; set; }

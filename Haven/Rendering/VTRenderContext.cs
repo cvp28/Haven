@@ -1,11 +1,15 @@
-﻿using System.Text;
+﻿using System.Runtime.InteropServices;
+using System.Text;
 
-namespace Haven;
+namespace HavenUI;
 
 public class VTRenderContext
 {
 	public static byte CurrentForegroundColor { get; internal set; }
 	public static byte CurrentBackgroundColor { get; internal set; }
+
+	public static int CurrentConsoleX { get; internal set; }
+	public static int CurrentConsoleY { get; internal set; }
 
 	/// <summary>
 	/// <para>
@@ -28,45 +32,43 @@ public class VTRenderContext
 	/// </summary>
 	public static bool OptimizeCharaterInfoBufferDraws { get; set; } = false;
 
-	private StringBuilder Buffer;
+	internal StringBuilder FrameBuffer;
+	private StringBuilder LastFrameBuffer;
 
 	public VTRenderContext()
 	{
 		// Initialize private members
-		Buffer = new();
+		FrameBuffer = new(1000);
+		LastFrameBuffer = new(1000);
 
 		// Initialize public members
 		CurrentForegroundColor = VTColor.White;
 		CurrentBackgroundColor = VTColor.Black;
 	}
 
-	public void Clear()
-	{
-		Buffer.Clear();
-	}
-
 	public void VTSetCursorPosition(int X, int Y)
 	{
-		Buffer.Append("\x1b[");
-		Buffer.Append(Math.Abs(Y + 1));
-		Buffer.Append(';');
-		Buffer.Append(Math.Abs(X + 1));
-		Buffer.Append('H');
+		FrameBuffer.Append("\x1b[");
+		FrameBuffer.Append(Math.Abs(Y + 1));
+		FrameBuffer.Append(';');
+		FrameBuffer.Append(Math.Abs(X + 1));
+		FrameBuffer.Append('H');
 	}
 
 	public void VTClearLine()
 	{
-		Buffer.Append("\x1b[2K");
+		FrameBuffer.Append("\x1b[2K");
 	}
 
 	public void VTDrawText(string Text)
 	{
-		Buffer.Append(Text);
+		foreach (var c in Text)
+			VTDrawChar(c);
 	}
 
 	public void VTDrawChar(char Character)
 	{
-		Buffer.Append(Character);
+		FrameBuffer.Append(Character);
 	}
 
 	public void VTDrawBox(int X, int Y, int Width, int Height)
@@ -74,31 +76,39 @@ public class VTRenderContext
 		VTSetCursorPosition(X, Y);
 
 		// Top line
-		Buffer.Append(BoxChars.TopLeft);
+		FrameBuffer.Append(BoxChars.TopLeft);
 
 		for (int i = 0; i < Width - 2; i++)
-			Buffer.Append(BoxChars.Horizontal);
+			FrameBuffer.Append(BoxChars.Horizontal);
 
-		Buffer.Append(BoxChars.TopRight);
+		FrameBuffer.Append(BoxChars.TopRight);
 
 		// Left and right lines
 		for (int i = 1; i < Height - 1; i++)
 		{
 			VTSetCursorPosition(X, Y + i);
 			VTDrawChar(BoxChars.Vertical);
-			VTSetCursorPosition(X + Width - 1, Y + i);
+			VTCursorForward(Width - 2);
+			//VTSetCursorPosition(X + Width - 1, Y + i);
 			VTDrawChar(BoxChars.Vertical);
 		}
 
 		VTSetCursorPosition(X, Y + Height - 1);
 
 		// Bottom line
-		Buffer.Append(BoxChars.BottomLeft);
+		FrameBuffer.Append(BoxChars.BottomLeft);
 
 		for (int i = 0; i < Width - 2; i++)
-			Buffer.Append(BoxChars.Horizontal);
+			FrameBuffer.Append(BoxChars.Horizontal);
 
-		Buffer.Append(BoxChars.BottomRight);
+		FrameBuffer.Append(BoxChars.BottomRight);
+	}
+
+	public void VTCursorForward(int Count = 1)
+	{
+		FrameBuffer.Append("\x1b[");
+		FrameBuffer.Append(Count);
+		FrameBuffer.Append('C');
 	}
 
 	private List<CharacterInfo> TempLineBuffer = new();
@@ -162,9 +172,10 @@ public class VTRenderContext
 
 		CurrentForegroundColor = Color;
 
-		Buffer.Append("\x1b[38;5;");
-		Buffer.Append(Color);
-		Buffer.Append('m');
+		FrameBuffer.Append("\x1b[");
+		FrameBuffer.Append("38;5;");
+		FrameBuffer.Append(Color);
+		FrameBuffer.Append('m');
 
 		return true;
 	}
@@ -176,14 +187,15 @@ public class VTRenderContext
 
 		CurrentBackgroundColor = Color;
 
-		Buffer.Append("\x1b[48;5;");
-		Buffer.Append(Color);
-		Buffer.Append('m');
+		FrameBuffer.Append("\x1b[");
+		FrameBuffer.Append("48;5;");
+		FrameBuffer.Append(Color);
+		FrameBuffer.Append('m');
 
 		return true;
 	}
 
-	public bool VTSetColors(byte Foreground, byte Background) => VTSetForegroundColor(Foreground) || VTSetBackgroundColor(Background);
+	public bool VTSetColors(byte Foreground, byte Background) => VTSetBackgroundColor(Background) || VTSetForegroundColor(Foreground);
 
 	public void VTEnterColorContext(byte Foreground, byte Background, Action ContextAction)
 	{
@@ -195,15 +207,39 @@ public class VTRenderContext
 			VTResetColors();
 	}
 
-	public void VTInvert() => Buffer.Append("\x1b[7m");
-	public void VTRevert() => Buffer.Append("\x1b[27m");
+	public void VTInvert() => FrameBuffer.Append("\x1b[7m");
+	public void VTRevert() => FrameBuffer.Append("\x1b[27m");
 
 	public void VTResetColors()
 	{
-		CurrentForegroundColor = ConsoleColor.White.ToByte();
-		CurrentBackgroundColor = ConsoleColor.Black.ToByte();
-		Buffer.Append("\x1b[97m\x1b[40m");
+		CurrentForegroundColor = VTColor.White;
+		CurrentBackgroundColor = VTColor.Black;
+		FrameBuffer.Append("\x1b[97m\x1b[40m");
 	}
 
-	public string GetBuffer() => Buffer.ToString();
+	public string GetCurrentFrameBuffer() => FrameBuffer.ToString();
+	public string GetLastFrameBuffer() => LastFrameBuffer.ToString();
+
+	public void SetCurrentFrameBuffer(string Contents)
+	{
+		ClearCurrentFrame();
+		FrameBuffer.Append(Contents);
+	}
+
+	// Stores the current frame for later reference
+	public void StoreCurrentFrame()
+	{
+		LastFrameBuffer.Clear();
+		LastFrameBuffer.Append(FrameBuffer);
+	}
+
+	public void ClearCurrentFrame()
+	{
+		FrameBuffer.Clear();
+	}
+
+	// Indicates if this context should be rendered because the current frame is different from the last frame
+	//public bool ShouldRender => string.CompareOrdinal(FrameBuffer.ToString(), LastFrameBuffer.ToString()) != 0;
+
+	public bool ShouldRender => !FrameBuffer.Equals(LastFrameBuffer);
 }

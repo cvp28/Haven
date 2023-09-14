@@ -1,7 +1,7 @@
 ﻿using System.Text;
 using System.Text.RegularExpressions;
 
-namespace Haven;
+namespace HavenUI;
 
 public enum InputFilter
 {
@@ -13,37 +13,37 @@ public enum InputFilter
 
 public class InputField : Widget
 {
-	public int X { get; set; }
-	public int Y { get; set; }
+	public int X { get; set; }//
+	public int Y { get; set; }//
 
-	public byte CursorForeground;
-	public byte CursorBackground;
-
-	public bool DrawCursor = true;
-
-	public string Prompt { get; set; }
+	public byte CursorForeground;//
+	public byte CursorBackground;//
+	
+	public bool DrawCursor = true;//
+	
+	public string Prompt { get; set; }//
 	private StringBuilder Buffer;
+	
+	public int CurrentHistoryIndex { get; private set; } = 0;//
+	public List<string> History = new();//
+	
+	public int BufferLength => Buffer.Length;//
+	
+	public int CursorX => (X + Prompt.Length + CurrentBufferIndex) % Haven.WindowWidth;//
+	public int CursorY => ((X + Prompt.Length + CurrentBufferIndex) / Haven.WindowWidth) + 1;//
+	
+	private int CurrentBufferIndex = 0;//
 
-	public int CurrentHistoryIndex { get; private set; } = 0;
-	public List<string> History = new();
+	public bool HighlightingEnabled = false;//
+	public bool HistoryEnabled = true;//
 
-	public int BufferLength => Buffer.Length;
+	public Action<string> OnInput { get; set; }//
+	public Func<string, bool> OnCharInput { get; set; }//
 
-	public int CursorX => (X + Prompt.Length + CurrentBufferIndex) % Dimensions.Current.WindowWidth;
-	public int CursorY => ((X + Prompt.Length + CurrentBufferIndex) / Dimensions.Current.WindowWidth) + 1;
+	public Func<Token, IEnumerable<Token>, IEnumerable<string>> OnRetrieveSuggestions { get; set; }//
+	public Action<IEnumerable<Token>> OnHighlight { get; set; }//
 
-	private int CurrentBufferIndex = 0;
-	public int MaxBufferIndex => Buffer.Length - 1;
-
-	public bool HighlightingEnabled = false;
-	public bool HistoryEnabled = true;
-
-	public Action<string> OnInput { get; set; }
-
-	public Func<Token, IEnumerable<Token>, IEnumerable<string>> OnRetrieveSuggestions { get; set; }
-	public Action<IEnumerable<Token>> OnHighlight { get; set; }
-
-	public List<Token> CurrentTokens = new();
+	private List<Token> CurrentTokens = new();//
 
 	private bool InAutoCompleteMode = false;
 	private string[] AutoCompleteSuggestions;
@@ -51,7 +51,7 @@ public class InputField : Widget
 
 	public InputFilter Filter { get; set; }
 
-	public InputField(int X, int Y, string Prompt) : this(X, Y, Prompt, ConsoleColor.Black.ToByte(), ConsoleColor.White.ToByte())
+	public InputField(int X, int Y, string Prompt) : this(X, Y, Prompt, VTColor.Black, VTColor.White)
 	{ }
 
 	public InputField(int X, int Y, string Prompt, byte CursorForeground, byte CursorBackground)
@@ -67,6 +67,11 @@ public class InputField : Widget
 		Buffer = new();
 		History = new();
 		OnInput = null;
+	}
+
+	public override void CalculateBoundaries()
+	{
+		
 	}
 
 	public override void Draw()
@@ -111,15 +116,15 @@ public class InputField : Widget
 			RenderContext.VTRevert();
 		}
 
-			//	RenderContext.VTEnterColorContext(1, 196, delegate ()
-			//	{
-			//		RenderContext.VTSetCursorPosition(X + Prompt.Length + CurrentBufferIndex, Y);
-			//	
-			//		if (CurrentBufferIndex == Buffer.Length)
-			//			RenderContext.VTDrawText(" ");
-			//		else
-			//			RenderContext.VTDrawText($"{Buffer[CurrentBufferIndex]}");
-			//	});
+		//	RenderContext.VTEnterColorContext(1, 196, delegate ()
+		//	{
+		//		RenderContext.VTSetCursorPosition(X + Prompt.Length + CurrentBufferIndex, Y);
+		//	
+		//		if (CurrentBufferIndex == Buffer.Length)
+		//			RenderContext.VTDrawText(" ");
+		//		else
+		//			RenderContext.VTDrawText($"{Buffer[CurrentBufferIndex]}");
+		//	});
 	}
 
 	public void CenterTo(Dimensions d, int XOff = 0, int YOff = 0)
@@ -177,8 +182,8 @@ public class InputField : Widget
 		CursorLeft();
 	}
 
-	private bool InHistoryMode = false;
-	private string BufferBackup;
+	private bool InHistoryMode = false;//
+	private string BufferBackup;//
 
 	private int IncrementInRange(int Value, int LowerBound, int UpperBound)
 	{
@@ -412,64 +417,7 @@ public class InputField : Widget
 					SetCurrentToken(AutoCompleteSuggestions[CurrentCompletionsIndex], AutoCompleteSuggestions[CurrentCompletionsIndex].Contains(' '));
 					break;
 				}
-
-			#region Shit that is old and complicated
-			//	// Construct temporary buffer using updated tokens
-			//	TempBuilder.Clear();
-			//	
-			//	for (int i = 0; i < CurrentTokens.Count; i++)
-			//	{
-			//		if (CurrentTokens[i].Quoted)
-			//		{
-			//			TempBuilder.Append($"\"{CurrentTokens[i].Content}\"");
-			//		}
-			//		else
-			//		{
-			//			TempBuilder.Append(CurrentTokens[i].Content);
-			//		}
-			//	
-			//		if (i != CurrentTokens.Count - 1)
-			//			TempBuilder.Append(' ');
-			//	}
-			//	
-			//	// Tokenize temporary buffer
-			//	var TempTokens = Tokenizer.Tokenize(TempBuilder.ToString());
-			//	
-			//	// Also tokenize the replacement string to see if it has more than 1 token
-			//	// If it does, then it messes up the math and we have to perform another check to ensure the cursor gets put in the right place
-			//	var ReplacedTokens = Tokenizer.Tokenize(SelectedToken.Content);
-			//	
-			//	int IndexOffset = 0;
-			//	
-			//	if (ReplacedTokens.Length > 1 && !SelectedToken.Quoted)
-			//		IndexOffset = ReplacedTokens.Length - 1;
-			//	
-			//	if (TempTokens.Length == 0)
-			//		goto ReconstructBuffer;
-			//	
-			//	if (Index > TempTokens.Length - 1)
-			//		Index = TempTokens.Length - 1;
-			//	
-			//	if (Index < 0)
-			//		Index = 0;
-			//	
-			//	Token token = TempTokens[Index + IndexOffset];
-			//	
-			//	if (token.Quoted)
-			//		CurrentBufferIndex = token.StartIndex + token.Content.Length + 2;
-			//	else
-			//		CurrentBufferIndex = token.StartIndex + token.Content.Length;
-			//	
-			//	ReconstructBuffer:
-			//	
-			//	Buffer.Clear();
-			//	Buffer.Append(TempBuilder.ToString());
-			//	
-			//	if (CurrentBufferIndex > MaxBufferIndex + 1)
-			//		CurrentBufferIndex = MaxBufferIndex + 1;
-			//	break;
-			#endregion
-
+			
 			default:
 				char c = cki.KeyChar;
 				bool Valid = false;
@@ -505,6 +453,9 @@ public class InputField : Widget
 				CurrentBufferIndex++;
 				break;
 		}
+
+		if (OnCharInput is not null && OnCharInput(Buffer.ToString()))
+			RaiseInputEvent = true;
 
 		// Handle input callback
 		if (RaiseInputEvent)
@@ -574,8 +525,8 @@ public class InputField : Widget
 					Content = m.Value.Trim('\"'),
 					StartIndex = m.Index,
 					Quoted = true,
-					HighlightForeground = ConsoleColor.White.ToByte(),
-					HighlightBackground = ConsoleColor.Black.ToByte()
+					HighlightForeground = VTColor.White,
+					HighlightBackground = VTColor.Black
 				});
 			}
 			else
@@ -585,8 +536,8 @@ public class InputField : Widget
 					Content = m.Value,
 					StartIndex = m.Index,
 					Quoted = false,
-					HighlightForeground = ConsoleColor.White.ToByte(),
-					HighlightBackground = ConsoleColor.Black.ToByte()
+					HighlightForeground = VTColor.White,
+					HighlightBackground = VTColor.Black
 				});
 			}
 		}

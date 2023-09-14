@@ -1,5 +1,5 @@
 ﻿
-namespace Haven;
+namespace HavenUI;
 
 public abstract class Widget
 {
@@ -15,12 +15,17 @@ public abstract class Widget
 	// The render (drawing) context for the widget
 	protected internal VTRenderContext RenderContext;
 
+	protected internal Rectangle Bounds;
+
 	public Widget()
 	{
 		Visible = true;
 		KeyActions = new();
 		RenderContext = new();
+		Bounds = new();
 	}
+
+	public abstract void CalculateBoundaries();
 
 	// Called when the widget is requested to draw itself to the screen
 	public abstract void Draw();
@@ -80,4 +85,7 @@ public abstract class Widget
 
 		KeyActions.Remove(Key);
 	}
+
+	public string GetRenderContextBuffer() => RenderContext.GetCurrentFrameBuffer();
+	public VTRenderContext GetRenderContext() => RenderContext;
 }

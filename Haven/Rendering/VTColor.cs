@@ -1,5 +1,5 @@
 ﻿
-namespace Haven;
+namespace HavenUI;
 
 public static class VTColor
 {
@@ -235,7 +235,7 @@ public static class VTColor
 	public const byte OffBlack = 236;
 	public const byte BoltgunMetal = 237;
 	public const byte GoshawkGray = 238;
-	public const byte FiftiethShadeofGray = 239;
+	public const byte FiftiethShadeOfGray = 239;
 	public const byte ShadowMountain = 240;
 	public const byte Kettleman = 241;
 	public const byte DoveGray = 242;

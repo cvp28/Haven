@@ -1,16 +1,15 @@
 ﻿
-using System.ComponentModel.DataAnnotations.Schema;
-
-namespace Haven;
+namespace HavenUI;
 
 public class Label : Widget
 {
 	public int X { get; set; }
 	public int Y { get; set; }
+
 	public string Text { get; set; }
 
-	public byte ForegroundColor;
-	public byte BackgroundColor;
+	public byte ForegroundColor { get; set; }
+	public byte BackgroundColor { get; set; }
 
 	public Label(int X, int Y) : this(X, Y, string.Empty)
 	{ }
@@ -45,6 +44,15 @@ public class Label : Widget
 			Y = 0;
 	}
 
+	public override void CalculateBoundaries()
+	{
+		Bounds.X = X;
+		Bounds.Y = Y;
+
+		Bounds.Width = Text.Length;
+		Bounds.Height = 1;
+	}
+
 	public override void Draw()
 	{
 		if (Text.Length == 0) { return; }
@@ -53,10 +61,21 @@ public class Label : Widget
 		RenderContext.VTSetCursorPosition(X, Y);
 
 		// The color context will determine automatically if the colors need to be reset after the code finishes
-		RenderContext.VTEnterColorContext(ForegroundColor, BackgroundColor, delegate ()
-		{
-			RenderContext.VTDrawText(Text);
-		});
+
+		bool DoReset = RenderContext.VTSetBackgroundColor(BackgroundColor);
+		DoReset |= RenderContext.VTSetForegroundColor(ForegroundColor);
+
+		RenderContext.VTDrawText(Text);
+
+		if (DoReset)
+			RenderContext.VTResetColors();
+
+		//	RenderContext.VTEnterColorContext(ForegroundColor, BackgroundColor, delegate ()
+		//	{
+		//		RenderContext.VTDrawText(Text);
+		//	});
+
+		//RenderContext.VTDrawBox(Bounds.X, Bounds.Y, Bounds.Width, Bounds.Height);
 	}
 
 	public override void OnConsoleKey(ConsoleKeyInfo cki)

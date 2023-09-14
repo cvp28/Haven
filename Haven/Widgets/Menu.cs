@@ -1,7 +1,7 @@
 ﻿
 using System.Collections.Concurrent;
 
-namespace Haven;
+namespace HavenUI;
 
 public class Menu : Widget
 {
@@ -92,6 +92,11 @@ public class Menu : Widget
 			Y = 0;
 	}
 
+	public override void CalculateBoundaries()
+	{
+		
+	}
+
 	public override void Draw()
 	{
 		if (Options.Count == 0)
@@ -168,6 +173,8 @@ public class Menu : Widget
 					RenderContext.VTEnterColorContext(Option.TextForeground, Option.TextBackground, delegate ()
 					{
 						RenderContext.VTDrawText(Option.Text);
+						RenderContext.VTDrawChar(' ');
+						RenderContext.VTDrawChar('<');
 					});
 					break;
 				}

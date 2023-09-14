@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace Haven;
+namespace HavenUI;
 
 [StructLayout(LayoutKind.Sequential)]
 internal struct COORD
@@ -41,16 +41,16 @@ internal struct SmallRect
 internal class Kernel32
 {
     [DllImport("kernel32.dll", SetLastError = true)]
-    internal static extern IntPtr GetStdHandle(int nStdHandle);
+    public static extern IntPtr GetStdHandle(int nStdHandle);
 
 	[DllImport("kernel32.dll")]
-	internal static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
+	public static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
 
 	[DllImport("kernel32.dll")]
-	internal static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
+	public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
 
 	[DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-	internal static extern IntPtr CreateFileW(
+	public static extern IntPtr CreateFileW(
 	 [MarshalAs(UnmanagedType.LPWStr)] string filename,
 	 [MarshalAs(UnmanagedType.U4)] FileAccess access,
 	 [MarshalAs(UnmanagedType.U4)] FileShare share,
@@ -60,7 +60,24 @@ internal class Kernel32
 	 IntPtr templateFile);
 
 	[DllImport("kernel32.dll")]
-	internal static extern bool WriteFile(IntPtr fFile, byte[] lpBuffer, uint nNumberOfBytesToWrite, out uint lpNumberOfBytesWritten, IntPtr lpOverlapped);
+	public static extern bool WriteFile(IntPtr fFile, byte[] lpBuffer, uint nNumberOfBytesToWrite, out uint lpNumberOfBytesWritten, IntPtr lpOverlapped);
+	
+	[DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
+	public static extern Int32 WaitForSingleObject(IntPtr handle, int milliseconds);
+	
+	[DllImport("kernel32.dll")]
+	public static extern IntPtr CreateWaitableTimer(IntPtr lpTimerAttributes, bool bManualReset, string lpTimerName);
+	
+	[DllImport("kernel32.dll")]
+	public static extern bool SetWaitableTimerEx(IntPtr hTimer, ref long DueTime, long Period, TimerAPCProc CompletionRoutine, IntPtr CompletionRoutineArg, IntPtr ReasonContext, ulong TolerableDelay);
+	
+	public delegate void TimerAPCProc(IntPtr completionArg, UInt32 timerLowValue, UInt32 timerHighValue);
+	
+	[DllImport("kernel32.dll", SetLastError=true)]
+	[return: MarshalAs(UnmanagedType.Bool)]
+	public static extern bool CloseHandle(IntPtr hObject);
+	
+	public static uint INFINITE = 0xFFFFFFFF;
 }
 
 internal enum EFileAccess : uint

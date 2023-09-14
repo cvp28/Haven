@@ -1,5 +1,5 @@
 ﻿
-namespace Haven;
+namespace HavenUI;
 
 internal struct TextBoxModifyAction
 {
