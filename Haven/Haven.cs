@@ -522,11 +522,11 @@ public static unsafe partial class Haven
 		}
 	}
 	
-	public static double SleepPowerSavingPercentage = 0.0;
-	public static double SleepSpinlockPercentage = 0.0;
+	public static double SleepPowerSavingPercentage { get; private set; } = 0.0;
+	public static double SleepSpinlockPercentage { get; private set; } = 0.0;
 	
-	public static int NumPowerSavingIterations = 0;
-	public static int NumSpinlockIterations = 0;
+	public static int NumPowerSavingIterations { get; private set; } = 0;
+	public static int NumSpinlockIterations { get; private set; } = 0;
 	
 	//private static IntPtr timer = Kernel32.CreateWaitableTimer(nint.Zero, false, null);
 	
